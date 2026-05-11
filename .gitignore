@@ -1,0 +1,26 @@
+# 환경 변수 (DB 비밀번호 등 민감 정보)
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+*.egg-info/
+
+# Backup
+_backup/
+
+# 업로드된 사용자 파일 (보고서 첨부, 게시판 첨부, 프로필 이미지 등)
+uploads/
+
+# Claude Code worktree/세션 메타데이터
+.claude/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
