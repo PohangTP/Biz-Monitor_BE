@@ -8,8 +8,11 @@ __pycache__/
 venv/
 *.egg-info/
 
-# Backup
+# Backup / 세션 인계 / 구버전 폴더
 _backup/
+biz-monitor/
+scripts/
+_HANDOFF_NEXT_SESSION.md
 
 # 업로드된 사용자 파일 (보고서 첨부, 게시판 첨부, 프로필 이미지 등)
 uploads/

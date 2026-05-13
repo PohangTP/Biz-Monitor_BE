@@ -94,6 +94,7 @@ class Project(Base):
     host = Column(String(100), nullable=True)
     local_gov = Column(String(100), nullable=True)
     partners = Column(String(2000), nullable=True)  # 참여기관 (콤마 구분 문자열)
+    pm_name = Column(String(100), nullable=True)    # 사업 담당자 (종합 대시보드 hd-pm)
     
     # 🔥 사업비 컬럼: 중복 제거 및 Integer(숫자)로 완벽 통일!
     gov_fund = Column(BigInteger, default=0)
@@ -293,6 +294,33 @@ class BoardFile(Base):
     uploader = relationship("User", foreign_keys=[uploaded_by])
 
 # ==========================================
+# 건의사항(FeedbackPost) — 모든 role 작성, 관리자만 전체 조회
+# ==========================================
+class FeedbackPost(Base):
+    __tablename__ = "feedback_posts"
+    id          = Column(Integer, primary_key=True, index=True)
+    title       = Column(String(200), nullable=False)
+    content     = Column(Text, nullable=True)
+    author_id   = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    author  = relationship("User", foreign_keys=[author_id])
+    files   = relationship("FeedbackFile", back_populates="post", cascade="all, delete-orphan")
+
+class FeedbackFile(Base):
+    __tablename__ = "feedback_files"
+    id                = Column(Integer, primary_key=True, index=True)
+    post_id           = Column(Integer, ForeignKey("feedback_posts.id"), nullable=False, index=True)
+    original_filename = Column(String(255), nullable=False)
+    stored_path       = Column(String(500), nullable=False)
+    file_size         = Column(BigInteger, default=0)
+    uploaded_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    uploaded_at       = Column(DateTime, default=datetime.utcnow)
+
+    post     = relationship("FeedbackPost", back_populates="files")
+    uploader = relationship("User", foreign_keys=[uploaded_by])
+
+# ==========================================
 # [추가] 로그인 및 회원가입 스키마
 # ==========================================
 class RegisterRequest(BaseModel):
@@ -397,6 +425,11 @@ def _migrate_schema():
                 except Exception:
                     pass
 
+        # 1.5) projects.pm_name (사업 담당자) 추가
+        if not has_column("projects", "pm_name"):
+            conn.execute(text("ALTER TABLE projects ADD COLUMN pm_name VARCHAR(100) NULL"))
+            print("[migrate] ADD projects.pm_name")
+
         # 3) users.status 컬럼 제거 (Phase 3-A 결정)
         if has_column("users", "status"):
             conn.execute(text("ALTER TABLE users DROP COLUMN status"))
@@ -412,7 +445,179 @@ try:
 except Exception as e:
     print(f"[migrate] WARN: {e}")
 
-app = FastAPI(title="부서 사업 관리 백엔드")
+# ==========================================
+# Pydantic Response 모델 (Swagger 문서용)
+# ==========================================
+
+class FileOut(BaseModel):
+    id: int
+    original_filename: str
+    stored_path: str
+    file_size: Optional[int] = None
+    uploaded_at: Optional[str] = None
+    download_url: str
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    name: str
+    role: str
+    team_name: str
+    pos: str
+    email: str
+    job_title: str
+    profile_image: str
+    profile_image_url: str
+
+class LoginOut(BaseModel):
+    id: int
+    username: str
+    name: str
+    role: str
+    team_name: str
+    pos: str
+    email: str
+    job_title: str
+    profile_image: str
+    profile_image_url: str
+
+class TeamOut(BaseModel):
+    id: int
+    name: str
+
+class ProjectOut(BaseModel):
+    id: str
+    name: str
+    icon: Optional[str] = None
+    status: Optional[str] = None
+    progress: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    desc: Optional[str] = None
+    agency: Optional[str] = None
+    host: Optional[str] = None
+    local_gov: Optional[str] = None
+    partners: List[str] = []
+    pm_name: Optional[str] = None
+    gov_fund: Optional[int] = None
+    local_fund: Optional[int] = None
+    etc_fund: Optional[int] = None
+    total_budget: Optional[int] = None
+    team_name: Optional[str] = None
+
+class TaskOut(BaseModel):
+    id: int
+    title: str
+    description: str
+    requester_id: Optional[int] = None
+    requester_name: Optional[str] = None
+    requester_username: Optional[str] = None
+    assignee_id: Optional[int] = None
+    assignee_name: Optional[str] = None
+    assignee_username: Optional[str] = None
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+    project_icon: Optional[str] = None
+    due_date: Optional[str] = None
+    priority: str
+    status: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class AssignmentOut(BaseModel):
+    id: int
+    user_id: int
+    user_name: Optional[str] = None
+    username: Optional[str] = None
+    project_id: str
+    project_name: Optional[str] = None
+    project_icon: Optional[str] = None
+    rate: float
+    role: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_active: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class ReportOut(BaseModel):
+    id: int
+    requester_id: int
+    requester_name: str
+    requester_username: str
+    target_id: int
+    target_name: str
+    target_username: str
+    title: str
+    description: str
+    due_date: str
+    status: str
+    reject_reason: str
+    submitted_at: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    created_at: Optional[str] = None
+    files: List[FileOut] = []
+
+class NoticeOut(BaseModel):
+    id: int
+    title: str
+    content: str
+    important: bool
+    created_by: int
+    creator_name: str
+    creator_username: str
+    creator_role: str
+    target_team_id: Optional[int] = None
+    target_team_name: Optional[str] = None
+    view_count: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    files: List[FileOut] = []
+
+class BoardPostOut(BaseModel):
+    id: int
+    title: str
+    content: str
+    author_id: int
+    author_name: str
+    author_username: str
+    author_role: str
+    target_team_id: Optional[int] = None
+    target_team_name: Optional[str] = None
+    view_count: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    files: List[FileOut] = []
+
+class FeedbackFileOut(BaseModel):
+    id: int
+    original_filename: str
+    file_size: Optional[int] = None
+    download_url: str
+
+class FeedbackPostOut(BaseModel):
+    id: int
+    title: str
+    content: str
+    author_id: int
+    author_name: str
+    author_username: str
+    author_role: str
+    created_at: Optional[str] = None
+    files: List[FeedbackFileOut] = []
+
+# ==========================================
+
+app = FastAPI(
+    title="PMS 사업 관리 시스템 API",
+    description=(
+        "부서 사업 관리 플랫폼 백엔드 API.\n\n"
+        "**인증**: 현재 `actor_username` 쿼리 파라미터/바디로 호출자를 식별합니다. "
+        "외부망 배포 전 JWT 토큰 기반으로 교체 예정.\n\n"
+        "**역할**: `sysadmin` > `admin` > `leader` > `member`"
+    ),
+    version="1.0.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -429,12 +634,12 @@ def _serialize_project(p: Project) -> dict:
     d["partners"] = [s.strip() for s in (p.partners or "").split(",") if s.strip()]
     return d
 
-@app.get("/projects")
+@app.get("/projects", tags=["projects"], summary="전체 사업 목록 조회", response_model=List[ProjectOut])
 def get_projects(db: Session = Depends(get_db)):
     return [_serialize_project(p) for p in db.query(Project).all()]
 
 # '우리 팀' 프로젝트만 조회. 응답 형태는 /projects와 동일 (프론트가 그대로 사용)
-@app.get("/teams/{team_name}/projects")
+@app.get("/teams/{team_name}/projects", tags=["projects"], summary="특정 팀의 사업 목록 조회", response_model=List[ProjectOut])
 def get_team_projects(team_name: str, db: Session = Depends(get_db)):
     team = db.query(Team).filter(Team.name == team_name).first()
     if not team:
@@ -478,7 +683,7 @@ def _seed_default_project_data(db: Session, project_id: str):
           f"risks={len(DEFAULT_RISKS)}, resp={len(DEFAULT_RESPONSES)}")
 
 
-@app.post("/projects")
+@app.post("/projects", tags=["projects"], summary="신규 사업 생성")
 def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     # 1. 프론트엔드에서 넘어온 팀 이름으로 DB에서 실제 팀을 찾습니다.
     team = db.query(Team).filter(Team.name == project.team_name).first()
@@ -522,7 +727,7 @@ def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
 
     return {"message": f"'{project.name}' 프로젝트가 {project.team_name}에 성공적으로 저장되었습니다!"}
 
-@app.put("/projects/{project_id}")
+@app.put("/projects/{project_id}", tags=["projects"], summary="사업 정보 수정")
 def update_project(project_id: str, project_data: dict = Body(...), db: Session = Depends(get_db)):
     # 1. DB에서 수정할 프로젝트를 ID로 찾습니다.
     db_project = db.query(Project).filter(Project.id == project_id).first()
@@ -567,7 +772,7 @@ def update_project(project_id: str, project_data: dict = Body(...), db: Session 
 # 프로젝트 삭제 API
 # (구) executions 테이블 제거 후 — Project.budget_data(JSON)는 Project 삭제와 함께 자연 소멸
 # ==========================================
-@app.delete("/projects/{project_id}")
+@app.delete("/projects/{project_id}", tags=["projects"], summary="사업 삭제")
 def delete_project(project_id: str, db: Session = Depends(get_db)):
     db_project = db.query(Project).filter(Project.id == project_id).first()
     if db_project:
@@ -587,6 +792,8 @@ from fastapi import HTTPException
 # sysadmin = 시스템 관리자, admin = 부서장, leader = 팀장, member = 팀원
 ALLOWED_REGISTER_ROLES   = {"leader", "member"}
 ALLOWED_USER_ROLES       = {"sysadmin", "admin", "leader", "member"}
+ADMIN_ROLES   = {"sysadmin", "admin"}                      # 전역 공지/게시판/건의 관리 권한
+PROJECT_ROLES = {"총괄책임자", "실무책임자", "참여연구원"}   # 사업 참여 역할
 
 def _require_sysadmin(actor_username: str, db: Session) -> User:
     """sysadmin 권한 검증. 임시 인증 — 외부망 배포 직전에 토큰 기반으로 교체 예정"""
@@ -597,7 +804,7 @@ def _require_sysadmin(actor_username: str, db: Session) -> User:
         raise HTTPException(status_code=403, detail="시스템 관리자만 수행할 수 있는 작업입니다.")
     return actor
 
-@app.post("/auth/register")
+@app.post("/auth/register", tags=["auth"], summary="회원가입 (leader/member만 가능)")
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
     # 0. role 화이트리스트 — 회원가입은 leader/member만 (sysadmin/admin은 관리자가 승격)
     if req.role not in ALLOWED_REGISTER_ROLES:
@@ -631,7 +838,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "회원가입 성공"}
 
-@app.post("/auth/login")
+@app.post("/auth/login", tags=["auth"], summary="로그인")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == req.username).first()
     if not user:
@@ -670,7 +877,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 class PermissionsRequest(BaseModel):
     project_ids: List[str]
 
-@app.post("/users/{username}/permissions")
+@app.post("/users/{username}/permissions", tags=["users"], summary="사용자 사업 접근 권한 부여")
 def grant_permissions(username: str, req: PermissionsRequest, db: Session = Depends(get_db)):
     """팀원에게 사업 권한 부여 (sync 방식 — 요청 목록에 없는 기존 권한은 제거)"""
     user = db.query(User).filter(User.username == username).first()
@@ -707,7 +914,7 @@ def grant_permissions(username: str, req: PermissionsRequest, db: Session = Depe
         "total": len(requested),
     }
 
-@app.delete("/users/{username}/permissions/{project_id}")
+@app.delete("/users/{username}/permissions/{project_id}", tags=["users"], summary="사용자 사업 접근 권한 해제")
 def revoke_permission(username: str, project_id: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -728,7 +935,7 @@ def revoke_permission(username: str, project_id: str, db: Session = Depends(get_
 class RoleChangeRequest(BaseModel):
     role: str
 
-@app.put("/users/{username}/role")
+@app.put("/users/{username}/role", tags=["users"], summary="사용자 시스템 역할 변경 (sysadmin 전용)")
 def change_user_role(
     username: str,
     req: RoleChangeRequest,
@@ -758,14 +965,14 @@ class TeamCreate(BaseModel):
     name: str
 
 # 🚀 [추가] 1. 전체 팀 목록 조회 API
-@app.get("/teams")
+@app.get("/teams", tags=["teams"], summary="전체 팀 목록 조회", response_model=List[TeamOut])
 def get_teams(db: Session = Depends(get_db)):
     teams = db.query(Team).all()
     # 팀 ID와 이름을 리스트로 반환합니다.
     return [{"id": t.id, "name": t.name} for t in teams]
 
 # 🚀 [추가] 2. 신규 팀 추가 API
-@app.post("/teams")
+@app.post("/teams", tags=["teams"], summary="팀 생성")
 def create_team(req: TeamCreate, db: Session = Depends(get_db)):
     # 중복 팀명 체크
     existing = db.query(Team).filter(Team.name == req.name).first()
@@ -779,7 +986,7 @@ def create_team(req: TeamCreate, db: Session = Depends(get_db)):
     return {"message": "팀 추가 성공", "id": new_team.id, "name": new_team.name}
 
 # 🚀 [추가] 3. 팀 삭제 API
-@app.delete("/teams/{team_name}")
+@app.delete("/teams/{team_name}", tags=["teams"], summary="팀 삭제")
 def delete_team(team_name: str, db: Session = Depends(get_db)):
     # 1. 지울 팀을 DB에서 찾습니다.
     team = db.query(Team).filter(Team.name == team_name).first()
@@ -802,8 +1009,7 @@ def delete_team(team_name: str, db: Session = Depends(get_db)):
 class TeamUpdate(BaseModel):
     name: str
 
-@app.put("/teams/{team_id}")
-@app.put("/teams/{team_id}")
+@app.put("/teams/{team_id}", tags=["teams"], summary="팀 이름 수정")
 def update_team(team_id: int, req: TeamUpdate, db: Session = Depends(get_db)):
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
@@ -847,13 +1053,13 @@ def _serialize_user(u: User, team_name_override: str = None) -> dict:
     }
 
 # 🚀 [추가] 유저(팀원) 목록 조회 API
-@app.get("/users")
+@app.get("/users", tags=["users"], summary="전체 사용자 목록 조회", response_model=List[UserOut])
 def get_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return [_serialize_user(u) for u in users]
 
 # 🚀 [추가] 특정 팀의 소속 유저만 가져오는 API
-@app.get("/teams/{team_name}/users")
+@app.get("/teams/{team_name}/users", tags=["users"], summary="특정 팀 소속 사용자 목록 조회", response_model=List[UserOut])
 def get_users_by_team(team_name: str, db: Session = Depends(get_db)):
     team = db.query(Team).filter(Team.name == team_name).first()
     if not team:
@@ -861,7 +1067,7 @@ def get_users_by_team(team_name: str, db: Session = Depends(get_db)):
     users = db.query(User).filter(User.team_id == team.id).all()
     return [_serialize_user(u, team_name_override=team.name) for u in users]
 
-@app.put("/users/{username}/team")
+@app.put("/users/{username}/team", tags=["users"], summary="사용자 소속 팀 변경")
 def update_user_team(username: str, req: UserTeamUpdate, db: Session = Depends(get_db)):
     # 1. 내 유저 정보를 찾습니다.
     user = db.query(User).filter(User.username == username).first()
@@ -883,7 +1089,7 @@ def update_user_team(username: str, req: UserTeamUpdate, db: Session = Depends(g
     return {"message": "소속 팀이 변경되었습니다.", "team_name": team.name, "team_id": team.id}
 
 # 🚀 직책 업데이트 API
-@app.put("/users/{username}/job-title")
+@app.put("/users/{username}/job-title", tags=["users"], summary="사용자 직책 수정")
 def update_user_job_title(username: str, req: UserJobTitleUpdate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -897,7 +1103,7 @@ def update_user_job_title(username: str, req: UserJobTitleUpdate, db: Session = 
 class UserPosUpdate(BaseModel):
     pos: str
 
-@app.patch("/users/{username}/pos")
+@app.patch("/users/{username}/pos", tags=["users"], summary="사용자 담당 업무(pos) 수정")
 def update_user_pos(username: str, req: UserPosUpdate, db: Session = Depends(get_db)):
     """팀원의 '담당 업무'(메모성 텍스트) 업데이트"""
     user = db.query(User).filter(User.username == username).first()
@@ -911,7 +1117,7 @@ def update_user_pos(username: str, req: UserPosUpdate, db: Session = Depends(get
 # User.status 컬럼 자체가 삭제되어 상태 셀렉트 UI 폐기됨
 
 # 🚀 팀원 삭제 API
-@app.delete("/users/{username}")
+@app.delete("/users/{username}", tags=["users"], summary="사용자 삭제")
 def delete_user(username: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -926,7 +1132,7 @@ def delete_user(username: str, db: Session = Depends(get_db)):
 # ==========================================
 # 사업별 예산 상세(BUDGET_ITEMS·EXEC_DATA) API — 이전 iframe 내부 localStorage 대체
 # ==========================================
-@app.get("/projects/{project_id}/budget")
+@app.get("/projects/{project_id}/budget", tags=["projects"], summary="사업 예산 조회")
 def get_project_budget(project_id: str, db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -938,7 +1144,7 @@ def get_project_budget(project_id: str, db: Session = Depends(get_db)):
     except Exception:
         return {"items": [], "execs": []}
 
-@app.put("/projects/{project_id}/budget")
+@app.put("/projects/{project_id}/budget", tags=["projects"], summary="사업 예산 저장")
 def save_project_budget(project_id: str, payload: dict = Body(...), db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -952,7 +1158,7 @@ def save_project_budget(project_id: str, payload: dict = Body(...), db: Session 
 # ==========================================
 # 사업별 담당자 연락처 (partner contacts) JSON
 # ==========================================
-@app.get("/projects/{project_id}/contacts")
+@app.get("/projects/{project_id}/contacts", tags=["projects"], summary="사업 담당자 연락처 조회")
 def get_project_contacts(project_id: str, db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -964,7 +1170,7 @@ def get_project_contacts(project_id: str, db: Session = Depends(get_db)):
     except Exception:
         return {"items": []}
 
-@app.put("/projects/{project_id}/contacts")
+@app.put("/projects/{project_id}/contacts", tags=["projects"], summary="사업 담당자 연락처 저장")
 def save_project_contacts(project_id: str, payload: dict = Body(...), db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1069,7 +1275,7 @@ def _recalc_project_progress(db: Session, project_id: str):
     p.progress = int(round(done / total * 100)) if total > 0 else 0
 
 # WBS — bulk GET/PUT
-@app.get("/projects/{project_id}/wbs")
+@app.get("/projects/{project_id}/wbs", tags=["projects"], summary="사업 WBS 목록 조회")
 def get_project_wbs(project_id: str, db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1084,7 +1290,7 @@ def get_project_wbs(project_id: str, db: Session = Depends(get_db)):
     except Exception:
         return {"items": []}
 
-@app.put("/projects/{project_id}/wbs")
+@app.put("/projects/{project_id}/wbs", tags=["projects"], summary="사업 WBS 저장")
 def save_project_wbs(project_id: str, payload: dict = Body(...), db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1099,7 +1305,7 @@ def save_project_wbs(project_id: str, payload: dict = Body(...), db: Session = D
     return {"ok": True, "items_count": len(items), "progress": p.progress}
 
 # ToDo — bulk GET/PUT (객체 형태: {wbsId: [todos], ...} 또는 평면 배열 모두 지원)
-@app.get("/projects/{project_id}/todos")
+@app.get("/projects/{project_id}/todos", tags=["projects"], summary="사업 ToDo 목록 조회")
 def get_project_todos(project_id: str, db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1111,7 +1317,7 @@ def get_project_todos(project_id: str, db: Session = Depends(get_db)):
     except Exception:
         return {"data": {}}
 
-@app.put("/projects/{project_id}/todos")
+@app.put("/projects/{project_id}/todos", tags=["projects"], summary="사업 ToDo 저장")
 def save_project_todos(project_id: str, payload: dict = Body(...), db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1139,7 +1345,7 @@ class TodoReportRequest(BaseModel):
     todo_priority: Optional[str] = "med"
     todo_due_date: Optional[str] = None
 
-@app.post("/projects/{project_id}/todos/report-task")
+@app.post("/projects/{project_id}/todos/report-task", tags=["projects"], summary="ToDo 항목을 업무(Task)로 보고")
 def report_todo_to_task(project_id: str, req: TodoReportRequest, db: Session = Depends(get_db)):
     """ToDo의 '팀장 보고' 버튼이 호출. 백엔드는 Task 테이블에 신규 row insert.
     todo 자체의 _reported 상태는 frontend가 todos JSON 안에 마킹 후 PUT /projects/{id}/todos로 저장."""
@@ -1184,7 +1390,7 @@ def report_todo_to_task(project_id: str, req: TodoReportRequest, db: Session = D
     }
 
 # 리스크 / 대응 — bulk GET/PUT (Phase 3-A에서 신규 사업 시드만, 화면 연동은 Phase 3-B)
-@app.get("/projects/{project_id}/risks")
+@app.get("/projects/{project_id}/risks", tags=["projects"], summary="사업 리스크 목록 조회")
 def get_project_risks(project_id: str, db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1195,7 +1401,7 @@ def get_project_risks(project_id: str, db: Session = Depends(get_db)):
         except: risks = []
     return {"items": risks if isinstance(risks, list) else []}
 
-@app.put("/projects/{project_id}/risks")
+@app.put("/projects/{project_id}/risks", tags=["projects"], summary="사업 리스크 저장")
 def save_project_risks(project_id: str, payload: dict = Body(...), db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1205,7 +1411,7 @@ def save_project_risks(project_id: str, payload: dict = Body(...), db: Session =
     db.commit()
     return {"ok": True, "items_count": len(items)}
 
-@app.get("/projects/{project_id}/responses")
+@app.get("/projects/{project_id}/responses", tags=["projects"], summary="사업 리스크 대응 조회")
 def get_project_responses(project_id: str, db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1216,7 +1422,7 @@ def get_project_responses(project_id: str, db: Session = Depends(get_db)):
         except: resp = {}
     return {"data": resp if isinstance(resp, dict) else {}}
 
-@app.put("/projects/{project_id}/responses")
+@app.put("/projects/{project_id}/responses", tags=["projects"], summary="사업 리스크 대응 저장")
 def save_project_responses(project_id: str, payload: dict = Body(...), db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
@@ -1225,6 +1431,136 @@ def save_project_responses(project_id: str, payload: dict = Body(...), db: Sessi
     p.resp_data = json.dumps(data, ensure_ascii=False)
     db.commit()
     return {"ok": True, "count": len(data) if isinstance(data, dict) else 0}
+
+# ==========================================
+# 산출물(Deliverables) API — JSON blob + 파일 업로드 (uploads/deliverables/{project_id}/)
+# 각 산출물 항목 shape:
+#   {id, name, type, wbsId, dueDate, reviewer, status, note,
+#    file_path?, original_filename?, file_size?}
+# ==========================================
+def _get_deliverables_items(p: Project) -> list:
+    if not p.deliverables_data:
+        return []
+    try:
+        d = json.loads(p.deliverables_data)
+        if isinstance(d, list): return d
+        if isinstance(d, dict): return d.get("items") or []
+    except Exception:
+        pass
+    return []
+
+@app.get("/projects/{project_id}/deliverables", tags=["projects"], summary="사업 산출물 목록 조회")
+def get_project_deliverables(project_id: str, db: Session = Depends(get_db)):
+    p = db.query(Project).filter(Project.id == project_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
+    return {"items": _get_deliverables_items(p)}
+
+@app.put("/projects/{project_id}/deliverables", tags=["projects"], summary="사업 산출물 저장")
+def save_project_deliverables(project_id: str, payload: dict = Body(...), db: Session = Depends(get_db)):
+    """산출물 메타데이터 일괄 저장. 파일 자체는 POST .../file 로 별도 업로드."""
+    p = db.query(Project).filter(Project.id == project_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
+    items = payload.get("items", [])
+    if not isinstance(items, list):
+        raise HTTPException(status_code=400, detail="items는 배열이어야 합니다.")
+    # 보안: client가 보낸 file_path는 그대로 신뢰 (서버 자체가 발급한 경로이므로)
+    # 단, 외부 절대 경로 등 비정상 값은 보존 X
+    cleaned = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        clean = dict(it)
+        fp = clean.get("file_path")
+        if fp and (".." in fp or fp.startswith("/") or fp.startswith("\\")):
+            clean["file_path"] = ""
+        cleaned.append(clean)
+    p.deliverables_data = json.dumps(cleaned, ensure_ascii=False)
+    db.commit()
+    return {"ok": True, "items_count": len(cleaned)}
+
+@app.post("/projects/{project_id}/deliverables/{deliv_id}/file", tags=["projects"], summary="산출물 파일 업로드")
+async def upload_deliverable_file(
+    project_id: str,
+    deliv_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """산출물 파일 업로드. uploads/deliverables/{project_id}/ 에 저장하고
+    deliverables_data JSON의 해당 항목에 file_path/original_filename/file_size를 갱신."""
+    p = db.query(Project).filter(Project.id == project_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
+    items = _get_deliverables_items(p)
+    target_idx = next((i for i, it in enumerate(items) if str(it.get("id")) == str(deliv_id)), -1)
+    if target_idx < 0:
+        raise HTTPException(status_code=404, detail=f"산출물 항목을 찾을 수 없습니다: {deliv_id}")
+    # 기존 파일이 있으면 삭제
+    prev = items[target_idx].get("file_path")
+    if prev:
+        try: (UPLOAD_ROOT / prev).unlink(missing_ok=True)
+        except Exception: pass
+    # 새 파일 저장 (uploads/deliverables/{project_id}/{filename})
+    rel_path, size = _save_upload(file, "deliverables", project_id)
+    # 50MB 초과 차단
+    if size > 50 * 1024 * 1024:
+        try: (UPLOAD_ROOT / rel_path).unlink(missing_ok=True)
+        except Exception: pass
+        raise HTTPException(status_code=400, detail="파일은 최대 50MB까지 업로드 가능합니다.")
+    # DB 갱신
+    items[target_idx]["file_path"]         = rel_path
+    items[target_idx]["original_filename"] = file.filename or ""
+    items[target_idx]["file_size"]         = size
+    p.deliverables_data = json.dumps(items, ensure_ascii=False)
+    db.commit()
+    return {
+        "ok": True,
+        "file_path": rel_path,
+        "file_url":  f"/files/{rel_path}",
+        "original_filename": file.filename or "",
+        "file_size": size,
+    }
+
+@app.get("/projects/{project_id}/deliverables/{deliv_id}/download", tags=["projects"], summary="산출물 파일 다운로드")
+def download_deliverable_file(project_id: str, deliv_id: str, db: Session = Depends(get_db)):
+    """산출물 파일 다운로드 — Content-Disposition: attachment 헤더로 강제 다운로드 + 원본 파일명 복원."""
+    p = db.query(Project).filter(Project.id == project_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
+    items = _get_deliverables_items(p)
+    target = next((it for it in items if str(it.get("id")) == str(deliv_id)), None)
+    if not target or not target.get("file_path"):
+        raise HTTPException(status_code=404, detail="파일이 없습니다.")
+    file_full = UPLOAD_ROOT / target["file_path"]
+    if not file_full.exists():
+        raise HTTPException(status_code=404, detail="저장된 파일을 찾을 수 없습니다.")
+    return FileResponse(
+        path=str(file_full),
+        media_type="application/octet-stream",
+        filename=target.get("original_filename") or "file",
+    )
+
+@app.delete("/projects/{project_id}/deliverables/{deliv_id}/file", tags=["projects"], summary="산출물 파일 삭제")
+def delete_deliverable_file(project_id: str, deliv_id: str, db: Session = Depends(get_db)):
+    """산출물 파일만 삭제 (메타는 유지). file_path/original_filename/file_size를 비움."""
+    p = db.query(Project).filter(Project.id == project_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
+    items = _get_deliverables_items(p)
+    target = next((it for it in items if str(it.get("id")) == str(deliv_id)), None)
+    if not target:
+        raise HTTPException(status_code=404, detail=f"산출물 항목을 찾을 수 없습니다: {deliv_id}")
+    fp = target.get("file_path")
+    if fp:
+        try: (UPLOAD_ROOT / fp).unlink(missing_ok=True)
+        except Exception: pass
+    target["file_path"] = ""
+    target["original_filename"] = ""
+    target["file_size"] = 0
+    p.deliverables_data = json.dumps(items, ensure_ascii=False)
+    db.commit()
+    return {"ok": True}
 
 # ==========================================
 # 비정기 업무(Task) API — 부서장/팀장 → 팀원 단발성 업무 배정
@@ -1271,7 +1607,7 @@ def _serialize_task(t: Task) -> dict:
         "updated_at":    t.updated_at.isoformat() if t.updated_at else None,
     }
 
-@app.post("/tasks")
+@app.post("/tasks", tags=["tasks"], summary="업무 생성")
 def create_task(req: TaskCreate, db: Session = Depends(get_db)):
     if req.priority and req.priority not in ALLOWED_TASK_PRIORITIES:
         raise HTTPException(status_code=400, detail=f"priority는 {sorted(ALLOWED_TASK_PRIORITIES)} 중 하나여야 합니다.")
@@ -1301,7 +1637,7 @@ def create_task(req: TaskCreate, db: Session = Depends(get_db)):
     db.refresh(t)
     return _serialize_task(t)
 
-@app.get("/tasks")
+@app.get("/tasks", tags=["tasks"], summary="업무 목록 조회 (팀/담당자 필터)", response_model=List[TaskOut])
 def list_tasks(team_name: Optional[str] = None, assignee_username: Optional[str] = None, db: Session = Depends(get_db)):
     """team_name 지정 시 그 팀에 속한 사용자가 담당자인 task만, assignee_username 지정 시 그 사용자의 task만."""
     q = db.query(Task)
@@ -1321,7 +1657,7 @@ def list_tasks(team_name: Optional[str] = None, assignee_username: Optional[str]
     rows = q.order_by(Task.created_at.desc()).all()
     return [_serialize_task(t) for t in rows]
 
-@app.put("/tasks/{task_id}")
+@app.put("/tasks/{task_id}", tags=["tasks"], summary="업무 수정")
 def update_task(task_id: int, req: TaskUpdate, db: Session = Depends(get_db)):
     t = db.query(Task).filter(Task.id == task_id).first()
     if not t:
@@ -1342,7 +1678,7 @@ def update_task(task_id: int, req: TaskUpdate, db: Session = Depends(get_db)):
     db.refresh(t)
     return _serialize_task(t)
 
-@app.delete("/tasks/{task_id}")
+@app.delete("/tasks/{task_id}", tags=["tasks"], summary="업무 삭제")
 def delete_task(task_id: int, db: Session = Depends(get_db)):
     t = db.query(Task).filter(Task.id == task_id).first()
     if not t:
@@ -1354,7 +1690,6 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
 # ==========================================
 # 🚀 사업 참여인력 (UserProject) API
 # ==========================================
-ALLOWED_ROLES = {"총괄책임자", "실무책임자", "참여연구원"}
 
 class AssignmentCreate(BaseModel):
     user_id:    int
@@ -1423,10 +1758,10 @@ def _has_exact_duplicate(db: Session, user_id: int, project_id: str,
         q = q.filter(UserProject.id != exclude_id)
     return q.first() is not None
 
-@app.post("/assignments")
+@app.post("/assignments", tags=["assignments"], summary="사업 참여자 등록")
 def create_assignment(req: AssignmentCreate, db: Session = Depends(get_db)):
-    if req.role not in ALLOWED_ROLES:
-        raise HTTPException(status_code=400, detail=f"role은 {ALLOWED_ROLES} 중 하나여야 합니다.")
+    if req.role not in PROJECT_ROLES:
+        raise HTTPException(status_code=400, detail=f"role은 {PROJECT_ROLES} 중 하나여야 합니다.")
     if not db.query(User).filter(User.id == req.user_id).first():
         raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
     if not db.query(Project).filter(Project.id == req.project_id).first():
@@ -1450,15 +1785,15 @@ def create_assignment(req: AssignmentCreate, db: Session = Depends(get_db)):
     db.refresh(a)
     return _serialize_assignment(a)
 
-@app.put("/assignments/{assignment_id}")
+@app.put("/assignments/{assignment_id}", tags=["assignments"], summary="사업 참여자 정보 수정")
 def update_assignment(assignment_id: int, req: AssignmentUpdate, db: Session = Depends(get_db)):
     a = db.query(UserProject).filter(UserProject.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="참여 정보를 찾을 수 없습니다.")
 
     if req.role is not None:
-        if req.role not in ALLOWED_ROLES:
-            raise HTTPException(status_code=400, detail=f"role은 {ALLOWED_ROLES} 중 하나여야 합니다.")
+        if req.role not in PROJECT_ROLES:
+            raise HTTPException(status_code=400, detail=f"role은 {PROJECT_ROLES} 중 하나여야 합니다.")
         a.role = req.role
     if req.rate is not None:
         a.rate = req.rate
@@ -1480,7 +1815,7 @@ def update_assignment(assignment_id: int, req: AssignmentUpdate, db: Session = D
     db.refresh(a)
     return _serialize_assignment(a)
 
-@app.delete("/assignments/{assignment_id}")
+@app.delete("/assignments/{assignment_id}", tags=["assignments"], summary="사업 참여자 삭제")
 def delete_assignment(assignment_id: int, db: Session = Depends(get_db)):
     a = db.query(UserProject).filter(UserProject.id == assignment_id).first()
     if not a:
@@ -1489,14 +1824,14 @@ def delete_assignment(assignment_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": f"참여 정보 {assignment_id} 삭제 완료"}
 
-@app.get("/projects/{project_id}/assignments")
+@app.get("/projects/{project_id}/assignments", tags=["assignments"], summary="사업 참여자 목록 조회", response_model=List[AssignmentOut])
 def list_project_assignments(project_id: str, db: Session = Depends(get_db)):
     if not db.query(Project).filter(Project.id == project_id).first():
         raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
     rows = db.query(UserProject).filter(UserProject.project_id == project_id).order_by(UserProject.start_date).all()
     return [_serialize_assignment(r) for r in rows]
 
-@app.get("/users/{username}/assignments")
+@app.get("/users/{username}/assignments", tags=["users"], summary="사용자 사업 참여 이력 조회", response_model=List[AssignmentOut])
 def list_user_assignments(username: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -1504,7 +1839,7 @@ def list_user_assignments(username: str, db: Session = Depends(get_db)):
     rows = db.query(UserProject).filter(UserProject.user_id == user.id).order_by(UserProject.start_date).all()
     return [_serialize_assignment(r) for r in rows]
 
-@app.get("/users/{username}/projects")
+@app.get("/users/{username}/projects", tags=["users"], summary="사용자 권한 사업 ID 목록 조회")
 def list_user_project_ids(username: str, db: Session = Depends(get_db)):
     """사용자가 권한 부여받은 사업 ID 목록 (권한설정 모달의 토글 상태 채우기용)"""
     user = db.query(User).filter(User.username == username).first()
@@ -1513,7 +1848,7 @@ def list_user_project_ids(username: str, db: Session = Depends(get_db)):
     rows = db.query(UserProject.project_id).filter(UserProject.user_id == user.id).distinct().all()
     return [r[0] for r in rows]
 
-@app.get("/teams/{team_name}/assignments")
+@app.get("/teams/{team_name}/assignments", tags=["teams"], summary="팀 전체 사업 참여 이력 조회", response_model=List[AssignmentOut])
 def list_team_assignments(team_name: str, db: Session = Depends(get_db)):
     """팀 전체 멤버의 모든 참여 행을 한 번에 조회 (인력 관리 화면용)."""
     team = db.query(Team).filter(Team.name == team_name).first()
@@ -1525,7 +1860,7 @@ def list_team_assignments(team_name: str, db: Session = Depends(get_db)):
     rows = db.query(UserProject).filter(UserProject.user_id.in_(user_ids)).order_by(UserProject.user_id, UserProject.start_date).all()
     return [_serialize_assignment(r) for r in rows]
 
-@app.get("/users/{username}/current-rate")
+@app.get("/users/{username}/current-rate", tags=["users"], summary="사용자 현재 참여율 조회")
 def get_user_current_rate(username: str, db: Session = Depends(get_db)):
     """오늘 기준 활성 행들의 rate 합계 — '현재 참여율'."""
     user = db.query(User).filter(User.username == username).first()
@@ -1542,7 +1877,7 @@ def get_user_current_rate(username: str, db: Session = Depends(get_db)):
 # ==========================================
 UPLOAD_ROOT = Path(__file__).parent / "uploads"
 UPLOAD_ROOT.mkdir(exist_ok=True)
-for sub in ("reports", "board", "profile", "notices"):
+for sub in ("reports", "board", "profile", "notices", "deliverables"):
     (UPLOAD_ROOT / sub).mkdir(exist_ok=True)
 
 # 정적 파일 서빙 — /files/reports/123/foo.pdf
@@ -1552,7 +1887,7 @@ def _save_upload(file: UploadFile, kind: str, owner_id) -> tuple[str, int]:
     """업로드 파일을 uploads/{kind}/{owner_id}/{uuid}_{원본} 으로 저장.
     반환: (relative_path, file_size). relative_path는 DB에 저장하고 다운로드 시 사용.
     """
-    if kind not in ("reports", "board", "profile", "notices"):
+    if kind not in ("reports", "board", "profile", "notices", "deliverables"):
         raise HTTPException(status_code=400, detail=f"지원하지 않는 업로드 종류: {kind}")
     folder = UPLOAD_ROOT / kind / str(owner_id)
     folder.mkdir(parents=True, exist_ok=True)
@@ -1610,9 +1945,8 @@ class ReportUpdate(BaseModel):
     status: Optional[str] = None        # '제출' / '승인' / '반려'
     reject_reason: Optional[str] = None
 
-@app.post("/reports")
+@app.post("/reports", tags=["reports"], summary="보고서 요청 생성 (위→아래)")
 def create_report(req: ReportCreate, db: Session = Depends(get_db)):
-    """보고서 요청 생성 — requester role > target role 만 가능 (위→아래)."""
     requester = db.query(User).filter(User.username == req.requester_username).first()
     target    = db.query(User).filter(User.username == req.target_username).first()
     if not requester:
@@ -1634,9 +1968,8 @@ def create_report(req: ReportCreate, db: Session = Depends(get_db)):
     db.add(r); db.commit(); db.refresh(r)
     return _serialize_report(r)
 
-@app.get("/reports")
+@app.get("/reports", tags=["reports"], summary="보고서 목록 조회 (요청자/대상자/전체)", response_model=List[ReportOut])
 def list_reports(username: str, role_view: str = "all", db: Session = Depends(get_db)):
-    """보고서 목록 — role_view='requester' 내가 요청한 것 / 'target' 내가 받은 것 / 'all' 둘 다."""
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
@@ -1650,16 +1983,15 @@ def list_reports(username: str, role_view: str = "all", db: Session = Depends(ge
     rows = q.order_by(Report.created_at.desc()).all()
     return [_serialize_report(r) for r in rows]
 
-@app.get("/reports/{report_id}")
+@app.get("/reports/{report_id}", tags=["reports"], summary="보고서 상세 조회", response_model=ReportOut)
 def get_report(report_id: int, db: Session = Depends(get_db)):
     r = db.query(Report).filter(Report.id == report_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="보고서를 찾을 수 없습니다.")
     return _serialize_report(r)
 
-@app.put("/reports/{report_id}")
+@app.put("/reports/{report_id}", tags=["reports"], summary="보고서 상태 변경 (제출/승인/반려)")
 def update_report(report_id: int, req: ReportUpdate, db: Session = Depends(get_db)):
-    """상태 전환: 제출(target만) / 승인·반려(requester만)."""
     r = db.query(Report).filter(Report.id == report_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="보고서를 찾을 수 없습니다.")
@@ -1684,9 +2016,8 @@ def update_report(report_id: int, req: ReportUpdate, db: Session = Depends(get_d
     db.commit(); db.refresh(r)
     return _serialize_report(r)
 
-@app.delete("/reports/{report_id}")
+@app.delete("/reports/{report_id}", tags=["reports"], summary="보고서 삭제 (요청자 또는 sysadmin)")
 def delete_report(report_id: int, actor_username: str, db: Session = Depends(get_db)):
-    """삭제는 요청자 또는 sysadmin만."""
     r = db.query(Report).filter(Report.id == report_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="보고서를 찾을 수 없습니다.")
@@ -1704,7 +2035,7 @@ def delete_report(report_id: int, actor_username: str, db: Session = Depends(get
     db.delete(r); db.commit()
     return {"ok": True}
 
-@app.post("/reports/{report_id}/files")
+@app.post("/reports/{report_id}/files", tags=["reports"], summary="보고서 파일 첨부")
 async def upload_report_file(
     report_id: int,
     file: UploadFile = File(...),
@@ -1737,9 +2068,8 @@ async def upload_report_file(
         "download_url": f"/files/{rf.stored_path}",
     }
 
-@app.delete("/reports/{report_id}/files/{file_id}")
+@app.delete("/reports/{report_id}/files/{file_id}", tags=["reports"], summary="보고서 첨부파일 삭제")
 def delete_report_file(report_id: int, file_id: int, actor_username: str, db: Session = Depends(get_db)):
-    """첨부 삭제 — 업로더 또는 요청자만."""
     rf = db.query(ReportFile).filter(ReportFile.id == file_id, ReportFile.report_id == report_id).first()
     if not rf:
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
@@ -1762,7 +2092,6 @@ def delete_report_file(report_id: int, file_id: int, actor_username: str, db: Se
 #         leader/member  → 본인 팀만 (target_team_id=내 팀 ID)
 # 조회 시 viewer가 sysadmin/admin이면 전체, 그 외엔 본인 팀 + NULL(전체) 공지만
 # ==========================================
-GLOBAL_NOTICE_ROLES = {"sysadmin", "admin"}  # 작성 시 자동 전체 공개
 
 def _serialize_notice(n: Notice) -> dict:
     return {
@@ -1804,21 +2133,19 @@ class NoticeUpdate(BaseModel):
     content: Optional[str] = None
     important: Optional[bool] = None
 
-@app.get("/notices")
+@app.get("/notices", tags=["notices"], summary="공지사항 목록 조회 (role/팀 기반 필터링)", response_model=List[NoticeOut])
 def list_notices(viewer_username: Optional[str] = None, db: Session = Depends(get_db)):
-    """공지 목록 — viewer의 role/팀에 따라 필터링.
-    sysadmin/admin → 모든 공지, leader/member → 전체 공지 + 본인 팀 공지만"""
     q = db.query(Notice)
     if viewer_username:
         viewer = db.query(User).filter(User.username == viewer_username).first()
-        if viewer and viewer.role not in GLOBAL_NOTICE_ROLES:
+        if viewer and viewer.role not in ADMIN_ROLES:
             # 본인 팀 공지 + 전체 공지(target_team_id IS NULL)만
             my_team = viewer.team_id
             q = q.filter(or_(Notice.target_team_id == None, Notice.target_team_id == my_team))
     rows = q.order_by(Notice.important.desc(), Notice.created_at.desc()).all()
     return [_serialize_notice(n) for n in rows]
 
-@app.get("/notices/{notice_id}")
+@app.get("/notices/{notice_id}", tags=["notices"], summary="공지사항 상세 조회 (조회수 증가)", response_model=NoticeOut)
 def get_notice(notice_id: int, db: Session = Depends(get_db)):
     n = db.query(Notice).filter(Notice.id == notice_id).first()
     if not n:
@@ -1827,7 +2154,7 @@ def get_notice(notice_id: int, db: Session = Depends(get_db)):
     db.commit(); db.refresh(n)
     return _serialize_notice(n)
 
-@app.post("/notices")
+@app.post("/notices", tags=["notices"], summary="공지사항 작성")
 def create_notice(req: NoticeCreate, db: Session = Depends(get_db)):
     actor = db.query(User).filter(User.username == req.actor_username).first()
     if not actor:
@@ -1846,7 +2173,7 @@ def create_notice(req: NoticeCreate, db: Session = Depends(get_db)):
     scope = (req.target_scope or "").strip()
     if scope == "":
         # 자동 결정
-        target_team = None if (actor.role in GLOBAL_NOTICE_ROLES) else actor.team_id
+        target_team = None if (actor.role in ADMIN_ROLES) else actor.team_id
     elif scope == "all":
         target_team = None
     else:
@@ -1857,7 +2184,7 @@ def create_notice(req: NoticeCreate, db: Session = Depends(get_db)):
         if not db.query(Team).filter(Team.id == tid).first():
             raise HTTPException(status_code=404, detail="대상 팀을 찾을 수 없습니다.")
         # leader/member는 본인 팀에만
-        if actor.role not in GLOBAL_NOTICE_ROLES and tid != actor.team_id:
+        if actor.role not in ADMIN_ROLES and tid != actor.team_id:
             raise HTTPException(status_code=403, detail="다른 팀에 공지를 게시할 권한이 없습니다.")
         target_team = tid
 
@@ -1871,7 +2198,7 @@ def create_notice(req: NoticeCreate, db: Session = Depends(get_db)):
     db.add(n); db.commit(); db.refresh(n)
     return _serialize_notice(n)
 
-@app.put("/notices/{notice_id}")
+@app.put("/notices/{notice_id}", tags=["notices"], summary="공지사항 수정")
 def update_notice(notice_id: int, req: NoticeUpdate, db: Session = Depends(get_db)):
     n = db.query(Notice).filter(Notice.id == notice_id).first()
     if not n:
@@ -1887,7 +2214,7 @@ def update_notice(notice_id: int, req: NoticeUpdate, db: Session = Depends(get_d
     db.commit(); db.refresh(n)
     return _serialize_notice(n)
 
-@app.delete("/notices/{notice_id}")
+@app.delete("/notices/{notice_id}", tags=["notices"], summary="공지사항 삭제")
 def delete_notice(notice_id: int, actor_username: str, db: Session = Depends(get_db)):
     n = db.query(Notice).filter(Notice.id == notice_id).first()
     if not n:
@@ -1904,7 +2231,7 @@ def delete_notice(notice_id: int, actor_username: str, db: Session = Depends(get
     db.delete(n); db.commit()
     return {"ok": True}
 
-@app.post("/notices/{notice_id}/files")
+@app.post("/notices/{notice_id}/files", tags=["notices"], summary="공지사항 파일 첨부")
 async def upload_notice_file(
     notice_id: int,
     file: UploadFile = File(...),
@@ -1976,22 +2303,21 @@ class BoardPostUpdate(BaseModel):
     content: Optional[str] = None
 
 # 게시판 가시 범위 — 공지와 동일: sysadmin/admin은 전체, 그 외엔 본인 팀 + 전체 게시판
-BOARD_GLOBAL_ROLES = {"sysadmin", "admin"}
 
-@app.get("/board/posts")
+@app.get("/board/posts", tags=["board"], summary="게시판 글 목록 조회 (role/팀 기반 필터링)", response_model=List[BoardPostOut])
 def list_board_posts(viewer_username: Optional[str] = None, db: Session = Depends(get_db)):
     """게시판 글 목록 — viewer의 role/팀에 따라 필터링.
     sysadmin/admin → 모든 글, leader/member → 전체 게시판 + 본인 팀 게시판"""
     q = db.query(BoardPost)
     if viewer_username:
         viewer = db.query(User).filter(User.username == viewer_username).first()
-        if viewer and viewer.role not in BOARD_GLOBAL_ROLES:
+        if viewer and viewer.role not in ADMIN_ROLES:
             my_team = viewer.team_id
             q = q.filter(or_(BoardPost.target_team_id == None, BoardPost.target_team_id == my_team))
     rows = q.order_by(BoardPost.created_at.desc()).all()
     return [_serialize_board_post(p) for p in rows]
 
-@app.get("/board/posts/{post_id}")
+@app.get("/board/posts/{post_id}", tags=["board"], summary="게시판 글 상세 조회 (조회수 증가)", response_model=BoardPostOut)
 def get_board_post(post_id: int, db: Session = Depends(get_db)):
     p = db.query(BoardPost).filter(BoardPost.id == post_id).first()
     if not p:
@@ -2000,7 +2326,7 @@ def get_board_post(post_id: int, db: Session = Depends(get_db)):
     db.commit(); db.refresh(p)
     return _serialize_board_post(p)
 
-@app.post("/board/posts")
+@app.post("/board/posts", tags=["board"], summary="게시판 글 작성")
 def create_board_post(req: BoardPostCreate, db: Session = Depends(get_db)):
     actor = db.query(User).filter(User.username == req.actor_username).first()
     if not actor:
@@ -2012,7 +2338,7 @@ def create_board_post(req: BoardPostCreate, db: Session = Depends(get_db)):
     target_team = None
     scope = (req.target_scope or "").strip()
     if scope == "":
-        target_team = None if (actor.role in BOARD_GLOBAL_ROLES) else actor.team_id
+        target_team = None if (actor.role in ADMIN_ROLES) else actor.team_id
     elif scope == "all":
         target_team = None
     else:
@@ -2022,7 +2348,7 @@ def create_board_post(req: BoardPostCreate, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="잘못된 게시 대상입니다.")
         if not db.query(Team).filter(Team.id == tid).first():
             raise HTTPException(status_code=404, detail="대상 팀을 찾을 수 없습니다.")
-        if actor.role not in BOARD_GLOBAL_ROLES and tid != actor.team_id:
+        if actor.role not in ADMIN_ROLES and tid != actor.team_id:
             raise HTTPException(status_code=403, detail="다른 팀 게시판에 글을 게시할 권한이 없습니다.")
         target_team = tid
 
@@ -2035,7 +2361,7 @@ def create_board_post(req: BoardPostCreate, db: Session = Depends(get_db)):
     db.add(p); db.commit(); db.refresh(p)
     return _serialize_board_post(p)
 
-@app.put("/board/posts/{post_id}")
+@app.put("/board/posts/{post_id}", tags=["board"], summary="게시판 글 수정")
 def update_board_post(post_id: int, req: BoardPostUpdate, db: Session = Depends(get_db)):
     p = db.query(BoardPost).filter(BoardPost.id == post_id).first()
     if not p:
@@ -2050,7 +2376,7 @@ def update_board_post(post_id: int, req: BoardPostUpdate, db: Session = Depends(
     db.commit(); db.refresh(p)
     return _serialize_board_post(p)
 
-@app.delete("/board/posts/{post_id}")
+@app.delete("/board/posts/{post_id}", tags=["board"], summary="게시판 글 삭제")
 def delete_board_post(post_id: int, actor_username: str, db: Session = Depends(get_db)):
     p = db.query(BoardPost).filter(BoardPost.id == post_id).first()
     if not p:
@@ -2068,7 +2394,7 @@ def delete_board_post(post_id: int, actor_username: str, db: Session = Depends(g
     db.delete(p); db.commit()
     return {"ok": True}
 
-@app.post("/board/posts/{post_id}/files")
+@app.post("/board/posts/{post_id}/files", tags=["board"], summary="게시판 글 파일 첨부")
 async def upload_board_file(
     post_id: int,
     file: UploadFile = File(...),
@@ -2098,7 +2424,7 @@ async def upload_board_file(
         "download_url": f"/files/{bf.stored_path}",
     }
 
-@app.delete("/board/posts/{post_id}/files/{file_id}")
+@app.delete("/board/posts/{post_id}/files/{file_id}", tags=["board"], summary="게시판 글 첨부파일 삭제")
 def delete_board_file(post_id: int, file_id: int, actor_username: str, db: Session = Depends(get_db)):
     bf = db.query(BoardFile).filter(BoardFile.id == file_id, BoardFile.post_id == post_id).first()
     if not bf:
@@ -2117,9 +2443,109 @@ def delete_board_file(post_id: int, file_id: int, actor_username: str, db: Sessi
     return {"ok": True}
 
 # ==========================================
+# 건의사항(FeedbackPost) CRUD — 모든 role 작성, 관리자만 전체 조회
+# ==========================================
+class FeedbackPostCreate(BaseModel):
+    actor_username: str
+    title: str
+    content: Optional[str] = None
+
+def _serialize_feedback_post(p: FeedbackPost) -> dict:
+    return {
+        "id": p.id,
+        "title": p.title,
+        "content": p.content or "",
+        "author_id": p.author_id,
+        "author_name": p.author.name if p.author else "",
+        "author_username": p.author.username if p.author else "",
+        "author_role": p.author.role if p.author else "",
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "files": [{
+            "id": f.id,
+            "original_filename": f.original_filename,
+            "file_size": f.file_size,
+            "download_url": f"/files/{f.stored_path}",
+        } for f in (p.files or [])],
+    }
+
+
+@app.get("/feedback/posts", tags=["feedback"], summary="건의사항 목록 조회 (admin: 전체, 그 외: 본인만)", response_model=List[FeedbackPostOut])
+def list_feedback_posts(viewer_username: Optional[str] = None, db: Session = Depends(get_db)):
+    q = db.query(FeedbackPost)
+    if viewer_username:
+        viewer = db.query(User).filter(User.username == viewer_username).first()
+        if viewer and viewer.role not in ADMIN_ROLES:
+            q = q.filter(FeedbackPost.author_id == viewer.id)
+    rows = q.order_by(FeedbackPost.created_at.desc()).all()
+    return [_serialize_feedback_post(p) for p in rows]
+
+@app.post("/feedback/posts", tags=["feedback"], summary="건의사항 작성")
+def create_feedback_post(req: FeedbackPostCreate, db: Session = Depends(get_db)):
+    actor = db.query(User).filter(User.username == req.actor_username).first()
+    if not actor:
+        raise HTTPException(status_code=404, detail="작성자를 찾을 수 없습니다.")
+    if not req.title.strip():
+        raise HTTPException(status_code=400, detail="제목은 필수입니다.")
+    p = FeedbackPost(
+        title=req.title.strip(),
+        content=(req.content or "").strip(),
+        author_id=actor.id,
+    )
+    db.add(p); db.commit(); db.refresh(p)
+    return _serialize_feedback_post(p)
+
+@app.delete("/feedback/posts/{post_id}", tags=["feedback"], summary="건의사항 삭제 (작성자 또는 admin)")
+def delete_feedback_post(post_id: int, actor_username: str, db: Session = Depends(get_db)):
+    p = db.query(FeedbackPost).filter(FeedbackPost.id == post_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="건의사항을 찾을 수 없습니다.")
+    actor = db.query(User).filter(User.username == actor_username).first()
+    if not actor:
+        raise HTTPException(status_code=404, detail="호출자를 찾을 수 없습니다.")
+    if actor.id != p.author_id and actor.role not in ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="작성자 또는 관리자만 삭제할 수 있습니다.")
+    for f in p.files:
+        try:
+            (UPLOAD_ROOT / f.stored_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+    db.delete(p); db.commit()
+    return {"ok": True}
+
+@app.post("/feedback/posts/{post_id}/files", tags=["feedback"], summary="건의사항 파일 첨부")
+async def upload_feedback_file(
+    post_id: int,
+    file: UploadFile = File(...),
+    actor_username: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    p = db.query(FeedbackPost).filter(FeedbackPost.id == post_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="건의사항을 찾을 수 없습니다.")
+    actor = db.query(User).filter(User.username == actor_username).first()
+    if not actor:
+        raise HTTPException(status_code=404, detail="호출자를 찾을 수 없습니다.")
+    rel_path, size = _save_upload(file, "feedback", p.id)
+    ff = FeedbackFile(
+        post_id=p.id,
+        original_filename=file.filename or "file",
+        stored_path=rel_path,
+        file_size=size,
+        uploaded_by=actor.id,
+    )
+    db.add(ff); db.commit(); db.refresh(ff)
+    return {
+        "id": ff.id,
+        "original_filename": ff.original_filename,
+        "stored_path": ff.stored_path,
+        "file_size": ff.file_size,
+        "download_url": f"/files/{ff.stored_path}",
+    }
+
+# ==========================================
 # 프로필 이미지 업로드 — 본인만, uploads/profile/{user_id}/
 # ==========================================
-@app.post("/users/{username}/profile-image")
+@app.post("/users/{username}/profile-image", tags=["users"], summary="프로필 이미지 업로드")
 async def upload_profile_image(
     username: str,
     file: UploadFile = File(...),
@@ -2157,7 +2583,7 @@ async def upload_profile_image(
         "file_size": size,
     }
 
-@app.delete("/users/{username}/profile-image")
+@app.delete("/users/{username}/profile-image", tags=["users"], summary="프로필 이미지 삭제")
 def delete_profile_image(username: str, actor_username: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -2178,7 +2604,7 @@ def delete_profile_image(username: str, actor_username: str, db: Session = Depen
 # ==========================================
 # 대시보드 최근 활동 — 5종 활동을 union해서 시간순으로 반환
 # ==========================================
-@app.get("/activities")
+@app.get("/activities", tags=["activities"], summary="활동 피드 조회 (role-aware)")
 def list_activities(viewer_username: str = "", limit: int = 20, db: Session = Depends(get_db)):
     """
     role-aware activity feed:
