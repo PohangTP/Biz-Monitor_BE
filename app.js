@@ -4746,6 +4746,10 @@ function checkLogin() {
       }
       
       if (typeof fetchProjectsFromDB === 'function') fetchProjectsFromDB();
+      // 탭 클릭 전에도 뱃지가 표시되도록 백그라운드에서 미리 패치
+      if (typeof fetchTasksFromDB === 'function') {
+        fetchTasksFromDB().then(() => { if (typeof updateTaskBadge === 'function') updateTaskBadge(); });
+      }
     } catch (e) {
       console.error("데이터 파싱 오류:", e);
       goToLogout();
