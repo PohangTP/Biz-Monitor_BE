@@ -3249,7 +3249,7 @@ function renderMembersTable(users, opts) {
   // (권한 로직이 있다면 그대로 사용, 없다면 빈 객체로 에러 방지)
   const perms = typeof loadPermissions === 'function' ? loadPermissions() : {};
 
-  const colspan = readonly ? 7 : 9;
+  const colspan = readonly ? 6 : 8;
   // DB에서 가져온 유저가 없으면 안내 문구 출력
   if (!users || users.length === 0) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center;padding:24px;color:var(--text3)">팀원이 없습니다.</td></tr>`;
@@ -3274,9 +3274,6 @@ function renderMembersTable(users, opts) {
     const userRole = u.role || 'member';
     const isSelf = (myUsername && u.username === myUsername);
 
-    // 2. 미구현 기능 프레임 (기본값 설정)
-    const progress = 0; // 나중에 DB에서 가져올 값
-
     // 3. UI 로직
     const pCount = (perms[u.name] || []).length;
 
@@ -3286,9 +3283,6 @@ function renderMembersTable(users, opts) {
               onclick="showUserRolesPopup(event,'${u.username}')"
               style="cursor:pointer">${pCount}개 사업</span>`
       : `<span class="perm-badge-none" id="perm-count-${u.username}">미배정</span>`;
-
-    const fillColor = progress>=80?'progress-green':progress>=60?'progress-blue':progress>=40?'progress-gold':'progress-red';
-    const warn = progress<40?' ⚠':'';
 
     // role 드롭다운 (sysadmin만 보임)
     const roleSelect = `<select class="form-input" style="font-size:12px;padding:4px 6px;min-width:80px"
@@ -3318,10 +3312,6 @@ function renderMembersTable(users, opts) {
         <td><span style="font-family:'DM Mono',monospace;font-size:12px">${u.username||'-'}</span></td>
         <td>${dept}</td>
         <td>${posCell}</td>
-        <td>
-          <div class="progress-bar" style="width:80px"><div class="progress-fill ${fillColor}" style="width:${progress}%"></div></div>
-          <span style="font-size:11px;color:${progress<40?'var(--danger)':'var(--text2)'}">${progress}%${warn}</span>
-        </td>
         <td>${permsCell}</td>
       </tr>`;
     }
@@ -3342,11 +3332,6 @@ function renderMembersTable(users, opts) {
       <td>${dept}</td>
       <td class="sysadmin-only">${roleSelect}</td>
       <td>${posCell}</td>
-
-      <td>
-        <div class="progress-bar" style="width:80px"><div class="progress-fill ${fillColor}" style="width:${progress}%"></div></div>
-        <span style="font-size:11px;color:${progress<40?'var(--danger)':'var(--text2)'}">${progress}%${warn}</span>
-      </td>
 
       <td id="perm-cell-${u.username}">
         <button class="btn-sm btn-sm-ghost leader-only-action" style="font-size:12px"
