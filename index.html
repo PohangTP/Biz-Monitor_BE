@@ -291,28 +291,12 @@
           <!-- Weekly chart + Members -->
           <div class="two-col">
             <div class="card">
-              <div class="card-header"><span class="card-title">📈 주간 업무 완료량</span></div>
-              <div class="chart-placeholder">
-                <div class="bar-wrap">
-                  <div class="bar" style="height:55px"></div>
-                  <div class="bar-label">월</div>
-                </div>
-                <div class="bar-wrap">
-                  <div class="bar" style="height:80px"></div>
-                  <div class="bar-label">화</div>
-                </div>
-                <div class="bar-wrap">
-                  <div class="bar" style="height:65px"></div>
-                  <div class="bar-label">수</div>
-                </div>
-                <div class="bar-wrap">
-                  <div class="bar" style="height:100px"></div>
-                  <div class="bar-label">목</div>
-                </div>
-                <div class="bar-wrap">
-                  <div class="bar" style="height:48px"></div>
-                  <div class="bar-label">금</div>
-                </div>
+              <div class="card-header">
+                <span class="card-title">📈 주간 업무 완료량</span>
+                <span id="weekly-chart-total" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
+              </div>
+              <div class="chart-placeholder" id="weekly-chart-bars">
+                <div style="display:flex;align-items:center;justify-content:center;width:100%;color:var(--text3);font-size:13px">불러오는 중...</div>
               </div>
             </div>
             <div class="card">

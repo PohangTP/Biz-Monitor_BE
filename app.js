@@ -856,6 +856,49 @@ async function renderOverviewStats() {
   }
 }
 
+// ── 대시보드 주간 업무 완료량 차트 ──
+async function renderWeeklyChart() {
+  const container = document.getElementById('weekly-chart-bars');
+  const totalEl   = document.getElementById('weekly-chart-total');
+  if (!container) return;
+
+  const actor = localStorage.getItem('actor_username') || '';
+  try {
+    const res = await fetch(`${API_BASE}/dashboard/weekly-completion?actor_username=${encodeURIComponent(actor)}`);
+    if (!res.ok) throw new Error('fetch failed');
+    const data = await res.json();
+
+    const { days, counts, total, week_start, week_end } = data;
+    const maxCount = Math.max(...counts, 1);
+    const MAX_BAR_H = 100; // px (chart-placeholder height 160px 중 bar 영역)
+
+    // 오늘 요일 강조 (0=월 기준)
+    const todayDow = (new Date().getDay() + 6) % 7; // JS 0=일 → 0=월로 변환
+
+    container.innerHTML = days.map((label, i) => {
+      const h    = Math.max(Math.round((counts[i] / maxCount) * MAX_BAR_H), counts[i] > 0 ? 8 : 4);
+      const isToday = (i === todayDow);
+      const countLabel = counts[i] > 0
+        ? `<div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:2px">${counts[i]}</div>`
+        : `<div style="font-size:10px;color:var(--text3);margin-bottom:2px">-</div>`;
+      return `
+        <div class="bar-wrap" title="${label}요일: ${counts[i]}건 완료">
+          ${countLabel}
+          <div class="bar" style="height:${h}px;${isToday ? 'opacity:1;box-shadow:0 0 0 2px var(--accent)' : ''}"></div>
+          <div class="bar-label" style="${isToday ? 'color:var(--accent);font-weight:700' : ''}">${label}</div>
+        </div>`;
+    }).join('');
+
+    if (totalEl) {
+      const fmt = d => d.slice(5).replace('-', '/');
+      totalEl.textContent = `이번주 ${total}건 완료 (${fmt(week_start)}~${fmt(week_end)})`;
+    }
+  } catch (e) {
+    console.error('[renderWeeklyChart]', e);
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;color:var(--text3);font-size:13px">데이터를 불러올 수 없습니다</div>';
+  }
+}
+
 // ── 대시보드 프로젝트 진행현황 렌더 ──
 function renderDashboardProjects() {
   const tbody = document.getElementById('dash-proj-tbody');
@@ -4810,7 +4853,7 @@ function switchLeaderTab(tab, navEl) {
   if (tab === 'tasks')           renderTasksTab();
   if (tab === 'settings')        { initUserProfile(); fetchTeamsFromDB(); refreshTeamDropdowns(); }
   if (tab === 'projects')        renderProjectsTab();
-  if (tab === 'overview')        { renderDashboardProjects(); renderDelayedTasks(); renderOverviewStats(); renderOverviewTeamList(); renderActivityFeed(); }
+  if (tab === 'overview')        { renderDashboardProjects(); renderDelayedTasks(); renderOverviewStats(); renderOverviewTeamList(); renderActivityFeed(); renderWeeklyChart(); }
   if (tab === 'budget-mgmt')     {
     // 최신 budget_data를 PROJECTS_LIST에 반영 후 readonly 합산 표시
     fetchProjectsFromDB().then(() => renderBudgetMgmt()).catch(() => renderBudgetMgmt());

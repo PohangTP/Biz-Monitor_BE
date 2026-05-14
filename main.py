@@ -2713,3 +2713,80 @@ def list_activities(viewer_username: str = "", limit: int = 20, db: Session = De
     for it in items:
         it.pop("_when_dt", None)
     return items
+
+
+# ==========================================
+# 대시보드 주간 업무 완료량 — Task(완료) + Todo(done) 기준 요일별 집계
+# ==========================================
+@app.get("/dashboard/weekly-completion", tags=["activities"], summary="이번주 요일별 업무 완료 건수")
+def weekly_completion(actor_username: str = "", db: Session = Depends(get_db)):
+    """
+    월~일 기준 이번주 완료된 업무 건수를 요일별로 반환합니다.
+
+    - **Task** (`status == '완료'`): `updated_at` 기준
+    - **Todo** (`done == True`): `updated_at` 기준
+    - sysadmin/admin → 전체, leader/member → 본인 팀 소속 데이터만
+
+    반환 예시:
+    ```json
+    {"days": ["월","화","수","목","금","토","일"], "counts": [2,0,5,1,3,0,0], "total": 11}
+    ```
+    """
+    from datetime import date, timedelta
+
+    # 이번주 월~일 계산
+    today = date.today()
+    weekday = today.weekday()  # 0=월, 6=일
+    week_start = today - timedelta(days=weekday)
+    week_end   = week_start + timedelta(days=6)
+
+    # 요청자 role 파악
+    viewer = None
+    if actor_username:
+        viewer = db.query(User).filter(User.username == actor_username).first()
+    is_global    = bool(viewer and viewer.role in ADMIN_ROLES)
+    viewer_team_id = viewer.team_id if viewer else None
+
+    DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"]
+    counts = [0] * 7
+
+    # ── Task (비정기 업무) ──
+    task_q = db.query(Task).filter(
+        Task.status == "완료",
+        Task.updated_at >= datetime.combine(week_start, datetime.min.time()),
+        Task.updated_at <  datetime.combine(week_end + timedelta(days=1), datetime.min.time()),
+    )
+    if not is_global and viewer_team_id:
+        # 담당자 또는 요청자가 같은 팀인 업무만
+        team_user_ids = [u.id for u in db.query(User).filter(User.team_id == viewer_team_id).all()]
+        task_q = task_q.filter(
+            (Task.assignee_id.in_(team_user_ids)) | (Task.requester_id.in_(team_user_ids))
+        )
+    for t in task_q.all():
+        if t.updated_at:
+            dow = t.updated_at.weekday()
+            counts[dow] += 1
+
+    # ── Todo (사업 To-Do) ──
+    todo_q = db.query(Todo).filter(
+        Todo.done == True,
+        Todo.updated_at >= datetime.combine(week_start, datetime.min.time()),
+        Todo.updated_at <  datetime.combine(week_end + timedelta(days=1), datetime.min.time()),
+    )
+    if not is_global and viewer_team_id:
+        # 담당자가 같은 팀이거나, 사업이 팀에 연결된 경우
+        team_user_ids = [u.id for u in db.query(User).filter(User.team_id == viewer_team_id).all()]
+        team_usernames = [u.username for u in db.query(User).filter(User.team_id == viewer_team_id).all()]
+        todo_q = todo_q.filter(Todo.assignee.in_(team_usernames))
+    for td in todo_q.all():
+        if td.updated_at:
+            dow = td.updated_at.weekday()
+            counts[dow] += 1
+
+    return {
+        "days":   DAY_LABELS,
+        "counts": counts,
+        "total":  sum(counts),
+        "week_start": str(week_start),
+        "week_end":   str(week_end),
+    }
