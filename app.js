@@ -1960,6 +1960,7 @@ async function renderReportsLeader() {
   }
   // 대상자 드롭다운 채우기 (member는 의미 없지만 form 자체가 숨겨짐)
   if (!isMember) await populateReportTargetSelect();
+  if (typeof updateReportBadge === 'function') updateReportBadge();
 }
 
 async function renderReportsMember() {
@@ -1971,6 +1972,7 @@ async function renderReportsMember() {
       ? '<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">받은 보고서가 없습니다</div>'
       : received.map(r => _reportItemHtml(r, 'received')).join('');
   }
+  if (typeof updateReportBadge === 'function') updateReportBadge();
 }
 
 const _ROLE_RANK_FRONT = { sysadmin: 4, admin: 3, leader: 2, member: 1 };
@@ -2032,6 +2034,7 @@ async function submitReportRequest() {
     document.getElementById('rep-req-due').value = '';
     document.getElementById('rep-req-target').value = '';
     renderReportsLeader();
+    if (typeof updateReportBadge === 'function') updateReportBadge();
   } catch (e) { console.error(e); showToast('❌ 서버 연결 오류'); }
 }
 
@@ -2082,6 +2085,7 @@ async function submitReport(reportId) {
     showToast('✅ 보고서를 제출했습니다');
     if (document.getElementById('ltab-reports')?.classList.contains('active')) renderReportsLeader();
     else renderReportsMember();
+    if (typeof updateReportBadge === 'function') updateReportBadge();
   }
 }
 
@@ -2090,6 +2094,7 @@ async function approveReport(reportId) {
   if (await _putReportStatus(reportId, '승인')) {
     showToast('✅ 승인되었습니다');
     renderReportsLeader();
+    if (typeof updateReportBadge === 'function') updateReportBadge();
   }
 }
 
@@ -2111,6 +2116,7 @@ async function confirmReject(reportId) {
   if (await _putReportStatus(reportId, '반려', reason)) {
     showToast('반려 처리되었습니다');
     renderReportsLeader();
+    if (typeof updateReportBadge === 'function') updateReportBadge();
   }
 }
 
@@ -4235,6 +4241,39 @@ function updateTaskBadge() {
 // 더미 — 더 이상 필요 없지만 외부 호출 호환을 위해 빈 함수로 남김
 function syncReportedTasks() { /* no-op (Task는 이제 DB 직접 insert) */ }
 
+// ── 보고서 사이드바 뱃지 업데이트 ──
+// • target 기준: 내가 아직 제출 안 한 것(요청) + 반려 받은 것(반려)
+// • requester 기준(leader/admin): 상대가 제출했는데 내가 아직 검토 안 한 것(제출)
+async function updateReportBadge() {
+  const username = _myUsername ? _myUsername() : (currentUser?.gwId || currentUser?.username || '');
+  if (!username) return;
+  let count = 0;
+  try {
+    const asTarget = await fetchReports('target');
+    count += asTarget.filter(r => r.status === '요청' || r.status === '반려').length;
+
+    const role = currentUser?.role || 'member';
+    if (role !== 'member') {
+      const asRequester = await fetchReports('requester');
+      count += asRequester.filter(r => r.status === '제출').length;
+    }
+  } catch (e) {
+    console.error('[updateReportBadge]', e);
+    return;
+  }
+  document.querySelectorAll('#page-leader .nav-item').forEach(el => {
+    if (el.textContent.includes('보고서')) {
+      let badge = el.querySelector('.nav-badge');
+      if (count > 0) {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'nav-badge'; el.appendChild(badge); }
+        badge.textContent = count;
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+  });
+}
+
 
 // ==========================================
 // 🚀 [이것만 남기세요!] DB 연동 로그인 요청 (doLogin)
@@ -4750,6 +4789,7 @@ function checkLogin() {
       if (typeof fetchTasksFromDB === 'function') {
         fetchTasksFromDB().then(() => { if (typeof updateTaskBadge === 'function') updateTaskBadge(); });
       }
+      if (typeof updateReportBadge === 'function') updateReportBadge();
     } catch (e) {
       console.error("데이터 파싱 오류:", e);
       goToLogout();
