@@ -64,119 +64,9 @@
             ✏️ 새 계정 만들기
           </button>
 
-          <!-- 빠른 로그인 (개발용) -->
-          <div
-            style="margin-top:24px;padding:14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border)">
-            <div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:10px;letter-spacing:.5px">빠른 접속
-              (데모)</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button onclick="quickLogin('admin')"
-                style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(37,99,235,0.3);background:rgba(37,99,235,0.08);color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
-                🏢 부서장
-              </button>
-              <button onclick="quickLogin('leader')"
-                style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(139,92,246,0.3);background:rgba(139,92,246,0.08);color:var(--leader);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
-                👑 팀장
-              </button>
-              <button onclick="quickLogin('member')"
-                style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(6,182,212,0.3);background:rgba(6,182,212,0.08);color:var(--member);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
-                👤 팀원
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div class="login-right">
-        <div class="release-notes">
-          <h2>🚀 시스템 업데이트 내역</h2>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>네트워크 및 접속 환경 구축</strong>
-            <p>사내망(192.168.14.172)을 통한 접속 환경 마련</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>프로젝트(사업) 관리 기능 구축</strong>
-            <p>신규 사업 생성, 상태(대기/진행/완료) 변경 기능 구현</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>사업비(예산) 집행 내역 관리</strong>
-            <p>예산 항목별 집행 내역 등록, 실시간 잔액 자동 계산</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>로그인/로그아웃 로직 개선</strong>
-            <p>새로고침 없는 즉각적인 화면 전환 및 이전 사용자 데이터 완벽 초기화 적용</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>권한별 맞춤 사이드바 연동</strong>
-            <p>부서장/팀장/팀원 로그인 시 각 권한에 맞는 정보가 사이드바에 실시간 렌더링</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>코드 최적화 및 분리</strong>
-            <p>HTML, CSS, JS 파일을 분리하여 시스템 속도 및 유지보수성 대폭 향상</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>참여인력 관리 기능 구축</strong>
-            <p>사업별 참여 인력 등록·역할 지정(총괄책임자/실무책임자/참여연구원)·참여율(%)·참여 기간 인라인 편집 + DB 연동 완료</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>4단계 권한 체계 신설</strong>
-            <p>시스템 관리자(sysadmin) / 부서장(admin) / 팀장(leader) / 팀원(member) 분리. 권한별 데이터 가시 범위 및 액션 자동 제어</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>사업 권한 부여 DB 연동</strong>
-            <p>팀장이 팀원에게 부여한 사업 접근 권한이 DB에 즉시 반영 — 새로고침·다른 브라우저에서도 그대로 유지</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>팀원 관리 화면 강화</strong>
-            <p>담당업무 인라인 편집, 본인 현재 상태 선택(정상/휴가/출장/회의/외근), 팀원별 사업 권한·사업별 역할 요약 팝업 추가</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>비정기 업무 배정 시스템</strong>
-            <p>성과목표·감사 대응 등 비정기 업무를 팀원에게 배정·완료 처리. "주요 업무보고 관리"(팀장) / "내 업무"(팀원) 권한별 분리 + DB 영구 저장</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>보안 및 배포 환경 정비</strong>
-            <p>DB 접속 정보 환경변수(.env) 분리, 사용자 비밀번호 bcrypt 해싱 적용, API 주소 통합 — 5월 말 외부망 배포 준비 완료</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>코드 구조 단일화</strong>
-            <p>프로젝트 상태 매핑(4곳→1곳)·탭 정의(3곳→1곳) 중복 제거. 새 상태/탭 추가 시 한 곳만 수정하면 자동 반영</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge">완료</span> <strong>화면 전환 UX 개선</strong>
-            <p>사업 진입 시 다크-라이트 배경색 깜빡임 제거. 테마 색상에 맞춘 부드러운 전환</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge badge-upcoming">예정</span> <strong>접속정보 프로필 자동 연동</strong>
-            <p>로그인 정보 기반 프로필 자동 동기화 + 프로필 이미지 업로드 기능</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge badge-upcoming">예정</span> <strong>보고서·게시판 모듈</strong>
-            <p>부서장→팀장→팀원 보고서 요청·승인 워크플로우, 자유 업/다운로드 게시판 신설</p>
-          </div>
-
-          <div class="note-item">
-            <span class="badge badge-upcoming">예정</span> <strong>공지사항 DB 연동</strong>
-            <p>현재 하드코딩된 공지사항을 DB 기반으로 전환, 작성·게시 기능 추가</p>
-          </div>
-        </div>
-      </div>
 
     </div>
   </div>
@@ -311,6 +201,9 @@
           </div>
           <div class="nav-item" onclick="switchLeaderTab('board',this)">
             <span class="nav-icon">📋</span> 게시판
+          </div>
+          <div class="nav-item" id="nav-feedback" onclick="switchLeaderTab('feedback',this)">
+            <span class="nav-icon">💬</span> 건의사항
           </div>
           <div class="nav-section-label">설정</div>
           <div class="nav-item" onclick="switchLeaderTab('settings',this)">
@@ -493,14 +386,25 @@
         <div id="ltab-tasks" class="ltab" style="display:none">
           <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between">
             <div>
-              <h1>✅ 주요 업무보고 관리</h1>
-              <p>팀 전체 업무 현황을 관리하고 신규 업무를 생성하세요.</p>
+              <!-- leader/admin/sysadmin 헤더 -->
+              <div class="leader-only-action" style="flex-direction:column;align-items:flex-start">
+                <h1>✅ 주요 업무보고 관리</h1>
+                <p>팀 전체 업무 현황을 관리하고 신규 업무를 생성하세요.</p>
+              </div>
+              <!-- member 헤더 -->
+              <div class="member-only-action" style="flex-direction:column;align-items:flex-start">
+                <h1>✅ 내 업무</h1>
+                <p>상위자가 부여한 업무를 확인하고, 개인 업무를 추가할 수 있습니다.</p>
+              </div>
             </div>
           </div>
 
-          <!-- 새 업무 생성 (leader/admin/sysadmin만 노출) -->
-          <div class="card leader-only-action" style="margin-bottom:20px">
-            <div class="card-header"><span class="card-title">새 업무 생성</span></div>
+          <!-- 새 업무 생성 — 모든 role 노출 (단, member는 본인에게만 배정 가능) -->
+          <div class="card" style="margin-bottom:20px">
+            <div class="card-header">
+              <span class="card-title leader-only-action">새 업무 생성</span>
+              <span class="card-title member-only-action">＋ 개인 업무 추가</span>
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 150px 110px auto;gap:10px;align-items:flex-end">
               <div>
                 <div class="form-label">업무명 *</div>
@@ -781,6 +685,37 @@
         </div>
 
 
+        <!-- FEEDBACK TAB (건의사항 — 모든 role 작성, 관리자만 전체 조회) -->
+        <div id="ltab-feedback" class="ltab" style="display:none">
+          <div class="page-header">
+            <h1>💬 건의사항</h1>
+            <p>베타 테스트 피드백을 자유롭게 남겨주세요.</p>
+          </div>
+          <div class="card" style="margin-bottom:20px">
+            <div class="card-header"><span class="card-title">건의사항 작성</span></div>
+            <div class="form-group">
+              <input class="form-input" id="feedback-new-title" type="text" placeholder="제목을 입력하세요">
+            </div>
+            <div class="form-group">
+              <textarea class="form-input" id="feedback-new-content" rows="4" placeholder="내용을 자유롭게 입력하세요..." style="resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <div class="form-label">파일·이미지 첨부 (선택, 여러 개 가능)</div>
+              <input class="form-input" id="feedback-new-files" type="file" multiple style="padding:6px">
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end">
+              <button class="btn-sm btn-sm-primary" onclick="submitFeedbackPost('')">제출하기</button>
+            </div>
+          </div>
+          <div class="card" id="feedback-list-wrap">
+            <div class="card-header">
+              <span class="card-title" id="feedback-list-title">건의사항 목록</span>
+            </div>
+            <div id="feedback-list" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+        </div>
+
+
         <!-- SETTINGS TAB -->
         <div id="ltab-settings" class="ltab" style="display:none">
           <div class="page-header">
@@ -846,30 +781,13 @@
                 </div>
               </div>
 
-              <div class="card">
-                <div class="profile-section-title">알림 설정</div>
-                <div style="display:flex;flex-direction:column;gap:16px">
-                  <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
-                    <div>
-                      <div style="font-size:14px;font-weight:500">업무 지연 알림</div>
-                      <div style="font-size:12px;color:var(--text2)">팀원 업무 지연 시 즉시 알림</div>
-                    </div>
-                    <input type="checkbox" checked style="accent-color:var(--accent);width:18px;height:18px">
-                  </label>
-                  <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
-                    <div>
-                      <div style="font-size:14px;font-weight:500">보고서 제출 알림</div>
-                      <div style="font-size:12px;color:var(--text2)">팀원 보고서 제출 시 알림</div>
-                    </div>
-                    <input type="checkbox" checked style="accent-color:var(--accent);width:18px;height:18px">
-                  </label>
-                  <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
-                    <div>
-                      <div style="font-size:14px;font-weight:500">이메일 다이제스트</div>
-                      <div style="font-size:12px;color:var(--text2)">매일 오전 9시 일일 요약 발송</div>
-                    </div>
-                    <input type="checkbox" style="accent-color:var(--accent);width:18px;height:18px">
-                  </label>
+              <div class="card" style="opacity:0.6">
+                <div class="profile-section-title">
+                  알림 설정
+                  <span style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:2px 8px;letter-spacing:.3px">🚧 미구현</span>
+                </div>
+                <div style="font-size:13px;color:var(--text2);padding:24px 0;text-align:center">
+                  알림 설정 기능은 추후 업데이트 예정입니다.
                 </div>
               </div>
             </div>
@@ -979,6 +897,9 @@
           </div>
           <div class="nav-item" onclick="switchMemberTab('board',this)">
             <span class="nav-icon">📋</span> 게시판
+          </div>
+          <div class="nav-item" id="nav-feedback-m" onclick="switchMemberTab('feedback',this)">
+            <span class="nav-icon">💬</span> 건의사항
           </div>
           <div class="nav-item" onclick="switchMemberTab('calendar',this)">
             <span class="nav-icon">📅</span> 일정
@@ -1358,6 +1279,36 @@
               </select>
             </div>
             <div id="board-list-m" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+        </div>
+
+        <!-- FEEDBACK TAB (member) -->
+        <div id="mtab-feedback" class="mtab" style="display:none">
+          <div class="page-header">
+            <h1>💬 건의사항</h1>
+            <p>베타 테스트 피드백을 자유롭게 남겨주세요.</p>
+          </div>
+          <div class="card" style="margin-bottom:20px">
+            <div class="card-header"><span class="card-title">건의사항 작성</span></div>
+            <div class="form-group">
+              <input class="form-input" id="feedback-new-title-m" type="text" placeholder="제목을 입력하세요">
+            </div>
+            <div class="form-group">
+              <textarea class="form-input" id="feedback-new-content-m" rows="4" placeholder="내용을 자유롭게 입력하세요..." style="resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <div class="form-label">파일·이미지 첨부 (선택, 여러 개 가능)</div>
+              <input class="form-input" id="feedback-new-files-m" type="file" multiple style="padding:6px">
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end">
+              <button class="btn-sm btn-sm-primary" onclick="submitFeedbackPost('m')">제출하기</button>
+            </div>
+          </div>
+          <div class="card" id="feedback-list-wrap-m">
+            <div class="card-header">
+              <span class="card-title" id="feedback-list-title-m">건의사항 목록</span>
+            </div>
+            <div id="feedback-list-m" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
         </div>
 
@@ -2006,6 +1957,7 @@
     <span>✅</span><span id="toast-msg">저장됐습니다</span>
   </div>
 
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 

@@ -1875,7 +1875,13 @@ def get_user_current_rate(username: str, db: Session = Depends(get_db)):
 # 파일 업로드 인프라 — uploads/{type}/{id}/{filename}
 # 보고서(2.2) / 게시판(2.4) / 프로필(2.7)에서 공통 사용
 # ==========================================
-UPLOAD_ROOT = Path(__file__).parent / "uploads"
+_upload_dir = os.environ.get("UPLOAD_DIR", "")
+if _upload_dir and Path(_upload_dir).is_absolute():
+    UPLOAD_ROOT = Path(_upload_dir)
+elif _upload_dir:
+    UPLOAD_ROOT = Path(__file__).parent / _upload_dir
+else:
+    UPLOAD_ROOT = Path(__file__).parent / "uploads"
 UPLOAD_ROOT.mkdir(exist_ok=True)
 for sub in ("reports", "board", "profile", "notices", "deliverables"):
     (UPLOAD_ROOT / sub).mkdir(exist_ok=True)

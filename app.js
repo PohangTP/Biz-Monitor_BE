@@ -31,18 +31,19 @@
 
 (function(){
   var t=localStorage.getItem('pms-theme')||'light';
-  if(t!=='dark') document.body.classList.add('theme-'+t);
+  document.body.classList.add('theme-'+t);  // dark도 명시적으로 theme-dark 클래스 부여
   var b=parseInt(localStorage.getItem('pms-brightness')||'100');
   if(b!==100) document.body.style.filter='brightness('+b+'%)';
 })();
 
 let currentUser = null;
 
-// API_BASE — hostname에 따라 자동 분기 (localhost 개발 / 사내망 / 향후 도메인)
+// API_BASE — hostname은 자동 감지, 포트는 config.js의 PMS_CONFIG.backendPort를 사용
 const API_BASE = (() => {
+  const port = (window.PMS_CONFIG && window.PMS_CONFIG.backendPort) || 8000;
   const host = location.hostname;
-  if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:8000';
-  return `http://${host.includes(':') ? `[${host}]` : host}:8000`;
+  if (host === 'localhost' || host === '127.0.0.1') return `http://localhost:${port}`;
+  return `http://${host.includes(':') ? `[${host}]` : host}:${port}`;
 })();
 
 // 1. 기존 가짜 데이터 대신 사용할 빈 전역 변수 준비
@@ -78,8 +79,7 @@ async function fetchProjectsFromDB() {
 
     // 서버에서 가져온 데이터를 진짜 홈페이지 전역 변수에 덮어씌웁니다.
     PROJECTS_LIST = dbData;
-    console.log("🔥 홈페이지에 적용될 DB 데이터:", PROJECTS_LIST);
-    
+
     // 💡 핵심: 임시 박스가 아니라, 기존 홈페이지의 진짜 UI 그리기 함수들을 다시 실행합니다!
     if (typeof renderLeaderBizNav === 'function') renderLeaderBizNav();
     if (typeof renderLeaderOverview === 'function') renderLeaderOverview();
@@ -141,6 +141,9 @@ const PROJ_TAB_LABELS = Object.fromEntries(PROJ_TABS.map(t => [t.tab, `${t.icon}
 function openProjTab(projId, tabId, el, role) {
   try {
     if (el) {
+      // 수행 사업 sub-item 클릭 시 .nav-item active도 해제
+      const page = document.getElementById(`page-${role}`);
+      if (page) page.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const container = el.closest('.nav-proj-items') || el.closest('.nav-sub-items');
       if (container) container.querySelectorAll('.nav-proj-item, .nav-sub-item').forEach(i => i.classList.remove('active'));
       el.classList.add('active');
@@ -191,6 +194,7 @@ function openProjTab(projId, tabId, el, role) {
       host:        proj.host      || '',
       localGov:    proj.localGov  || proj.local_gov || '',
       teamName:    proj.team_name || '',
+      pmName:      proj.pm_name   || '',
       totalBudget: Number(proj.totalBudget || proj.total_budget || 0),
       partners:    safePartners,
     };
@@ -232,6 +236,8 @@ function openProjTab(projId, tabId, el, role) {
     const sendMessages = () => {
       if (loading) loading.style.display = 'none';
       try {
+        // 현재 부모 테마 동기화 (iframe이 처음 로드되었을 수도 있으므로 명시적으로 전달)
+        frame.contentWindow?.postMessage({ type: 'setTheme', theme: currentTheme }, '*');
         frame.contentWindow?.postMessage({ type: 'switchTab', tab: tabId || 'tab-dashboard' }, '*');
         frame.contentWindow?.postMessage(payload, '*');
       } catch (e) {
@@ -253,7 +259,8 @@ function openProjTab(projId, tabId, el, role) {
         frame.style.display = 'block';
         sendMessages();
       }, { once: true });
-      fetch('project-frame.html')
+      // cache: 'no-store' — Live Server·브라우저 캐시 무효화 (변경 즉시 반영)
+      fetch('project-frame.html', { cache: 'no-store' })
         .then(r => r.text())
         .then(html => { frame.srcdoc = html; })
         .catch(err => {
@@ -545,11 +552,15 @@ let currentBrightness=parseInt(localStorage.getItem('pms-brightness')||'100');
 
 function applyTheme(themeId,save=true){
   THEMES.forEach(t=>document.body.classList.remove('theme-'+t.id));
-  if(themeId!=='dark') document.body.classList.add('theme-'+themeId);
+  document.body.classList.add('theme-'+themeId);  // dark도 명시적으로 theme-dark 클래스 부여
   currentTheme=themeId;
   if(save) localStorage.setItem('pms-theme',themeId);
   document.querySelectorAll('.theme-card').forEach(c=>{
     c.classList.toggle('active',c.dataset.theme===themeId);
+  });
+  // 모든 사업 iframe에도 테마 동기화
+  document.querySelectorAll('iframe').forEach(f => {
+    try { f.contentWindow?.postMessage({ type: 'setTheme', theme: themeId }, '*'); } catch(e){}
   });
 }
 function applyBrightness(val){
@@ -2507,6 +2518,137 @@ async function deleteBoardPost(postId) {
   } catch (e) { console.error(e); showToast('❌ 서버 연결 오류'); }
 }
 
+/* ══════════════════════════════════════════
+   건의사항 게시판 (FeedbackPost)
+   - 모든 role: 작성
+   - admin/sysadmin: 전체 목록 조회
+   - 그 외: 본인 제출 목록만 조회
+══════════════════════════════════════════ */
+async function _fetchFeedbackPosts() {
+  try {
+    const me = encodeURIComponent(_myUsername() || '');
+    const r = await fetch(`${API_BASE}/feedback/posts?viewer_username=${me}`);
+    return r.ok ? await r.json() : [];
+  } catch (e) { console.error('[fetchFeedbackPosts]', e); return []; }
+}
+
+function _feedbackFilesHtml(post) {
+  if (!post.files || post.files.length === 0) {
+    return '<div style="font-size:11px;color:var(--text3);padding:4px 0">첨부 파일 없음</div>';
+  }
+  return post.files.map(f => {
+    const isImg = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(f.original_filename);
+    const dlUrl = `${API_BASE}${f.download_url}`;
+    return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0">
+      <span>${isImg ? '🖼' : '📎'}</span>
+      <a href="${dlUrl}" target="_blank" download="${escapeHtml(f.original_filename)}"
+         style="color:var(--accent);text-decoration:underline">${escapeHtml(f.original_filename)}</a>
+      <span style="color:var(--text3)">(${_fmtBytes(f.file_size)})</span>
+    </div>
+    ${isImg ? `<div style="margin:4px 0 2px"><a href="${dlUrl}" target="_blank"><img src="${dlUrl}" alt="${escapeHtml(f.original_filename)}" loading="lazy" style="max-width:240px;max-height:160px;border-radius:6px;border:1px solid var(--border)"></a></div>` : ''}`;
+  }).join('');
+}
+
+function _feedbackPostHtml(post) {
+  const dateStr = _fmtReportDate(post.created_at);
+  const isMine = currentUser && (post.author_username === (currentUser.gwId || currentUser.username));
+  const isAdmin = currentUser && BOARD_GLOBAL_ROLES_FRONT.has(currentUser.role);
+  const canDelete = isMine || isAdmin;
+  const authorRoleKor = ROLE_KOR[post.author_role] || '';
+  return `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <strong style="font-size:14px">${escapeHtml(post.title)}</strong>
+        <div style="font-size:11px;color:var(--text3);text-align:right;white-space:nowrap">
+          ${escapeHtml(post.author_name || '익명')}${authorRoleKor ? ` (${authorRoleKor})` : ''} · ${escapeHtml(dateStr)}
+        </div>
+      </div>
+      ${post.content ? `<div style="font-size:12px;color:var(--text2);margin:4px 0 8px;white-space:pre-wrap">${escapeHtml(post.content)}</div>` : ''}
+      <div style="background:var(--surface2);border-radius:6px;padding:6px 10px;margin:6px 0">
+        ${_feedbackFilesHtml(post)}
+      </div>
+      ${canDelete ? `<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
+        <button class="btn-sm" style="padding:4px 10px;font-size:11px;background:#fee2e2;border:1px solid #fecaca;color:#b91c1c" onclick="deleteFeedbackPost(${post.id})">삭제</button>
+      </div>` : ''}
+    </div>`;
+}
+
+async function renderFeedback(suffix) {
+  const sx = suffix ? '-' + suffix : '';
+  const isAdmin = currentUser && BOARD_GLOBAL_ROLES_FRONT.has(currentUser.role);
+
+  // 목록 영역 가시성 + 타이틀
+  const listWrap = document.getElementById('feedback-list-wrap' + sx);
+  const listTitle = document.getElementById('feedback-list-title' + sx);
+  if (listTitle) listTitle.textContent = isAdmin ? '전체 건의사항' : '내 건의사항';
+  if (listWrap) listWrap.style.display = '';   // 모두에게 표시 (본인 것만 보이거나 전체 보이거나)
+
+  const list = document.getElementById('feedback-list' + sx);
+  if (!list) return;
+  list.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:12px">불러오는 중…</div>';
+  const posts = await _fetchFeedbackPosts();
+  list.innerHTML = posts.length === 0
+    ? '<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">제출된 건의사항이 없습니다</div>'
+    : posts.map(_feedbackPostHtml).join('');
+}
+
+async function submitFeedbackPost(suffix) {
+  const sx = suffix ? '-' + suffix : '';
+  const title   = document.getElementById('feedback-new-title' + sx)?.value.trim();
+  const content = document.getElementById('feedback-new-content' + sx)?.value.trim();
+  const fileInput = document.getElementById('feedback-new-files' + sx);
+  const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
+  if (!title) { showToast('⚠️ 제목을 입력하세요'); return; }
+  try {
+    const r = await fetch(`${API_BASE}/feedback/posts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor_username: _myUsername(), title, content }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      showToast('❌ 제출 실패: ' + (err.detail || '서버 오류'));
+      return;
+    }
+    const created = await r.json();
+    let uploadedCount = 0;
+    for (const f of files) {
+      const fd = new FormData();
+      fd.append('file', f);
+      fd.append('actor_username', _myUsername());
+      try {
+        const ur = await fetch(`${API_BASE}/feedback/posts/${created.id}/files`, { method: 'POST', body: fd });
+        if (ur.ok) uploadedCount++;
+        else console.warn('[submitFeedbackPost] 파일 업로드 실패:', f.name, await ur.text());
+      } catch (e) { console.error('[submitFeedbackPost] 업로드 오류:', f.name, e); }
+    }
+    showToast(files.length
+      ? `💬 건의사항 제출됨 (파일 ${uploadedCount}/${files.length}개 첨부)`
+      : '💬 건의사항이 제출됐습니다');
+    if (document.getElementById('feedback-new-title' + sx)) document.getElementById('feedback-new-title' + sx).value = '';
+    if (document.getElementById('feedback-new-content' + sx)) document.getElementById('feedback-new-content' + sx).value = '';
+    if (fileInput) fileInput.value = '';
+    renderFeedback(suffix || '');
+  } catch (e) { console.error(e); showToast('❌ 서버 연결 오류'); }
+}
+
+async function deleteFeedbackPost(postId) {
+  if (!confirm('이 건의사항을 삭제하시겠습니까? (첨부 파일도 함께 삭제됩니다)')) return;
+  try {
+    const r = await fetch(`${API_BASE}/feedback/posts/${postId}?actor_username=${encodeURIComponent(_myUsername())}`, {
+      method: 'DELETE',
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      showToast('❌ 삭제 실패: ' + (err.detail || '서버 오류'));
+      return;
+    }
+    showToast('🗑 삭제됐습니다');
+    if (document.getElementById('ltab-feedback')?.classList.contains('active')) renderFeedback('');
+    else if (document.getElementById('mtab-feedback')?.classList.contains('active')) renderFeedback('m');
+  } catch (e) { console.error(e); showToast('❌ 서버 연결 오류'); }
+}
+
 
 /* ══════════════════════════════════════
    iframe → team-system 예산 동기화
@@ -2539,6 +2681,30 @@ window.addEventListener('message', (e) => {
     const tab = document.getElementById('ltab-tasks');
     if(tab && tab.classList.contains('active') && typeof renderTasksTab === 'function') {
       renderTasksTab();
+    }
+  }
+  // iframe 내부에서 프로젝트 필드 수정 (예: 사업 담당자) → PROJECTS_LIST 캐시 갱신
+  if(type === 'projectUpdated' && projId && e.data.field) {
+    const p = PROJECTS_LIST.find(x => x.id === projId);
+    if (p) {
+      p[e.data.field] = e.data.value;
+    }
+  }
+  // (Phase 3-B) iframe 내부 탭 전환 → 부모 사이드바의 nav-proj-item active 동기화
+  if(type === 'iframeTabChanged' && projId && e.data.tab) {
+    const tabId = e.data.tab;
+    ['leader', 'member'].forEach(role => {
+      const itemPrefix = (role === 'leader' ? 'lpitem-' : 'mpitem-');
+      // 현재 사업의 모든 sub-item에서 active 제거 후 해당 탭만 추가
+      const container = document.getElementById((role === 'leader' ? 'lpi-' : 'mpi-') + projId);
+      if (!container) return;
+      container.querySelectorAll('.nav-proj-item').forEach(i => i.classList.remove('active'));
+      const target = document.getElementById(itemPrefix + projId + '-' + tabId);
+      if (target) target.classList.add('active');
+    });
+    // activeProjTab 추적 변수 갱신 (refreshAllProjectViews 복원용)
+    if (typeof activeProjTab !== 'undefined') {
+      ['leader','member'].forEach(r => { if (activeProjId[r] === projId) activeProjTab[r] = tabId; });
     }
   }
 });
@@ -3650,16 +3816,30 @@ const STATUS_MAP = {
 };
 
 async function renderTasksTab() {
-  // 담당자 드롭다운 — 팀 멤버에서 채움 (DB 기준)
+  // 담당자 드롭다운 — role에 따라 다르게 채움
   const sel = document.getElementById('new-task-assignee');
   if (sel) {
-    const myTeam = (currentUser?.dept || localStorage.getItem('user_team_name') || '').trim();
-    if (myTeam) {
-      try {
-        const r = await fetch(`${API_BASE}/teams/${encodeURIComponent(myTeam)}/users`);
-        const users = r.ok ? await r.json() : [];
-        sel.innerHTML = users.map(u => `<option value="${u.username}">${escapeHtml(u.name)}</option>`).join('');
-      } catch (e) { sel.innerHTML = ''; }
+    const myRole     = currentUser?.role || 'member';
+    const myUsername = currentUser?.gwId || currentUser?.username;
+    const myName     = currentUser?.name || myUsername || '본인';
+    if (myRole === 'member') {
+      // 팀원: 본인 한 명만 (개인 업무 추가)
+      sel.innerHTML = `<option value="${myUsername}">${escapeHtml(myName)} (본인)</option>`;
+      sel.disabled = true;
+    } else {
+      // leader/admin/sysadmin: 팀 전체 멤버 노출 + 본인도 추가 가능
+      sel.disabled = false;
+      const myTeam = (currentUser?.dept || localStorage.getItem('user_team_name') || '').trim();
+      if (myTeam) {
+        try {
+          const r = await fetch(`${API_BASE}/teams/${encodeURIComponent(myTeam)}/users`);
+          const users = r.ok ? await r.json() : [];
+          sel.innerHTML = users.map(u => {
+            const lbl = (u.username === myUsername) ? `${escapeHtml(u.name)} (본인)` : escapeHtml(u.name);
+            return `<option value="${u.username}">${lbl}</option>`;
+          }).join('');
+        } catch (e) { sel.innerHTML = ''; }
+      }
     }
   }
 
@@ -4639,6 +4819,7 @@ function switchLeaderTab(tab, navEl) {
   if (tab === 'reports')         renderReportsLeader();
   if (tab === 'notices')         renderNoticesLeader();
   if (tab === 'board')           renderBoard('');
+  if (tab === 'feedback')        renderFeedback('');
 }
 
 // member가 leader 페이지에 있는 공유 탭(팀원/프로젝트/사업비/참여인력)으로 cross-page 전환
@@ -4662,8 +4843,9 @@ function switchMemberTab(tab, navEl) {
   });
   const mel = document.getElementById('mtab-'+tab);
   if (mel) mel.classList.add('active');
-  // Clear sub-item active states
+  // Clear sub-item / proj-item active states
   document.querySelectorAll('#page-member .nav-sub-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('#page-member .nav-proj-item').forEach(i => i.classList.remove('active'));
   if (navEl) {
     document.querySelectorAll('#page-member .nav-item').forEach(n => n.classList.remove('active'));
     navEl.classList.add('active');
@@ -4676,6 +4858,7 @@ function switchMemberTab(tab, navEl) {
   if (tab === 'reports')         renderReportsMember();
   if (tab === 'notices')         renderNoticesMember();
   if (tab === 'board')           renderBoard('m');
+  if (tab === 'feedback')        renderFeedback('m');
 }
 
 // ── MEMBER 페이지 readonly 렌더 함수 ──

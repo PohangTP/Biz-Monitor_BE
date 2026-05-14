@@ -1386,119 +1386,23 @@ body.theme-rose .logo-title { color:#1e293b; }
   }
 
   /* ═══════════════════════════════════════
-   🚀 로그인 분할 화면 (업데이트 내역) CSS
+   로그인 화면 컨테이너
 ═══════════════════════════════════════ */
 .login-split-container {
   display: flex;
   width: 100%;
-  max-width: 1000px; /* 전체 너비를 넉넉하게 */
+  max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
   align-items: center;
   justify-content: center;
-  gap: 40px; /* 양옆 간격 */
   padding: 20px;
 }
 
-.login-left, .login-right {
-  flex: 1; /* 양쪽이 1:1 비율로 영역을 차지함 */
+.login-left {
   width: 100%;
 }
 
-/* ═══════════════════════════════════════
-   🚀 [업데이트] 릴리즈 노트 스크롤 및 예정 배지
-═══════════════════════════════════════ */
-.release-notes {
-  background: var(--surface2) !important; 
-  border: 1px solid var(--border) !important;
-  border-radius: 16px;
-  padding: 36px;
-  color: var(--text); 
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-  
-  /* 🔥 [핵심] 높이를 제한하고 스크롤을 활성화합니다 */
-  max-height: 550px; 
-  overflow-y: auto;
-}
-
-/* 제목 디자인 및 아래 여백 */
-.release-notes h2 {
-  font-size: 20px;
-  color: var(--accent); 
-  border-bottom: 2px solid var(--border);
-  
-  /* 🔥 [수정 2] 제목과 첫 번째 아이템 사이의 간격을 넉넉하게 확보! */
-  padding-bottom: 16px; 
-  margin-bottom: 28px; 
-}
-
-/* 🎨 세련된 다크 테마용 스크롤바 디자인 */
-.release-notes::-webkit-scrollbar {
-  width: 6px;
-}
-.release-notes::-webkit-scrollbar-track {
-  background: transparent;
-}
-.release-notes::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 10px;
-}
-.release-notes::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
-}
-
-/* 각 업데이트 항목 디자인 */
-.note-item {
-  /* 🔥 [수정 1] 너무 넓었던 위아래 간격을 32px -> 20px로 보기 좋게 축소! */
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  
-  /* 🔥 [수정 3] 묻혀서 안 보이던 구분선을 조금 더 밝고 선명하게 변경! (0.15 -> 0.3) */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-/* 마지막 항목은 아래쪽 선과 여백을 없앰 (깔끔한 마무리) */
-.note-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-/* 완료 배지 디자인 */
-.note-item span.badge {
-  background: rgba(16, 185, 129, 0.1); 
-  color: var(--success); 
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: bold;
-  margin-right: 8px;
-}
-
-/* 예정 배지 디자인 */
-.note-item span.badge-upcoming {
-  background: rgba(245, 158, 11, 0.1); 
-  color: var(--gold); 
-}
-
-/* 점검 배지 디자인 */
-.note-item span.badge-check {
-  background: rgba(245, 11, 11, 0.1); 
-  color: var(--red); 
-}
-
-.note-item strong {
-  font-size: 15px;
-}
-
-.note-item p {
-  font-size: 13px;
-  color: var(--text2); 
-  margin-top: 10px; 
-  line-height: 1.6; 
-}
-
-/* 모바일이나 작은 화면에서는 위아래로 쌓이도록 처리 */
 @media (max-width: 768px) {
   .login-split-container {
     flex-direction: column;
