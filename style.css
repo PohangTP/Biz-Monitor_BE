@@ -604,6 +604,20 @@
   }
   .tab-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
 
+  /* TAB PANELS */
+  .ltab, .mtab {
+    display: none;
+  }
+  .ltab.active, .mtab.active {
+    display: block;
+  }
+  .ltab.project-panel, .mtab.project-panel {
+    display: none;
+  }
+  .ltab.project-panel.active, .mtab.project-panel.active {
+    display: flex;
+  }
+
   /* MODAL */
   .modal-overlay {
     display: none; position: fixed; inset: 0; z-index: 100;
@@ -729,7 +743,8 @@
     flex: 1;
     border: none;
     width: 100%;
-    background: #0a0e1a;
+    /* 테마 색에 맞춰 iframe 빈 영역 배경을 부모와 일치시켜 첫 로드 flash 제거 */
+    background: var(--bg);
   }
   .iframe-loading {
     display: flex; align-items: center; justify-content: center;
@@ -1371,116 +1386,107 @@ body.theme-rose .logo-title { color:#1e293b; }
   }
 
   /* ═══════════════════════════════════════
-   🚀 로그인 분할 화면 (업데이트 내역) CSS
+   로그인 화면 컨테이너
 ═══════════════════════════════════════ */
 .login-split-container {
   display: flex;
   width: 100%;
-  max-width: 1000px; /* 전체 너비를 넉넉하게 */
+  max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
   align-items: center;
   justify-content: center;
-  gap: 40px; /* 양옆 간격 */
   padding: 20px;
 }
 
-.login-left, .login-right {
-  flex: 1; /* 양쪽이 1:1 비율로 영역을 차지함 */
+.login-left {
   width: 100%;
 }
 
-/* ═══════════════════════════════════════
-   🚀 [업데이트] 릴리즈 노트 스크롤 및 예정 배지
-═══════════════════════════════════════ */
-.release-notes {
-  background: var(--surface2) !important; 
-  border: 1px solid var(--border) !important;
-  border-radius: 16px;
-  padding: 36px;
-  color: var(--text); 
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-  
-  /* 🔥 [핵심] 높이를 제한하고 스크롤을 활성화합니다 */
-  max-height: 550px; 
-  overflow-y: auto;
-}
-
-/* 제목 디자인 및 아래 여백 */
-.release-notes h2 {
-  font-size: 20px;
-  color: var(--accent); 
-  border-bottom: 2px solid var(--border);
-  
-  /* 🔥 [수정 2] 제목과 첫 번째 아이템 사이의 간격을 넉넉하게 확보! */
-  padding-bottom: 16px; 
-  margin-bottom: 28px; 
-}
-
-/* 🎨 세련된 다크 테마용 스크롤바 디자인 */
-.release-notes::-webkit-scrollbar {
-  width: 6px;
-}
-.release-notes::-webkit-scrollbar-track {
-  background: transparent;
-}
-.release-notes::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 10px;
-}
-.release-notes::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
-}
-
-/* 각 업데이트 항목 디자인 */
-.note-item {
-  /* 🔥 [수정 1] 너무 넓었던 위아래 간격을 32px -> 20px로 보기 좋게 축소! */
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  
-  /* 🔥 [수정 3] 묻혀서 안 보이던 구분선을 조금 더 밝고 선명하게 변경! (0.15 -> 0.3) */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-/* 마지막 항목은 아래쪽 선과 여백을 없앰 (깔끔한 마무리) */
-.note-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-/* 완료 배지 디자인 */
-.note-item span.badge {
-  background: rgba(16, 185, 129, 0.1); 
-  color: var(--success); 
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: bold;
-  margin-right: 8px;
-}
-
-/* 예정 배지 디자인 */
-.note-item span.badge-upcoming {
-  background: rgba(245, 158, 11, 0.1); 
-  color: var(--gold); 
-}
-
-.note-item strong {
-  font-size: 15px;
-}
-
-.note-item p {
-  font-size: 13px;
-  color: var(--text2); 
-  margin-top: 10px; 
-  line-height: 1.6; 
-}
-
-/* 모바일이나 작은 화면에서는 위아래로 쌓이도록 처리 */
 @media (max-width: 768px) {
   .login-split-container {
     flex-direction: column;
   }
 }
 
+
+/* sysadmin 전용 컬럼 — 일반 사용자에게는 숨김 */
+.sysadmin-only { display: none; }
+body.is-sysadmin .sysadmin-only { display: table-cell; }
+
+/* member-return-only — leader 페이지에서 cross-page 진입한 member에게만 노출 */
+.member-return-only { display: none; }
+body.is-member .member-return-only { display: flex; }
+
+/* member 로그인 시 leader 화면에서 편집/추가/삭제 액션 숨김 */
+body.is-member .leader-only-action { display: none !important; }
+/* sysadmin이 아닌 사용자에게 sysadmin 전용 + 액션도 숨김 (이미 .sysadmin-only 처리됨) */
+
+/* member 전용 — leader 사이드바에서 member에게만 보이는 항목 */
+.member-only-action { display: none; }
+body.is-member .member-only-action { display: flex; }
+
+/* ════════════════════════════════════════
+   Phase 3-A: 대시보드 팀원 현황 / 최근 활동
+═════════════════════════════════════════ */
+.overview-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.overview-team-grid .team-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: background .15s, border-color .15s;
+}
+.overview-team-grid .team-card:hover {
+  border-color: var(--accent);
+  background: rgba(59,130,246,0.04);
+}
+.overview-team-grid .team-card-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.3;
+}
+.overview-team-grid .team-card-pos {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.overview-team-grid .user-avatar {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  background-size: cover;
+  background-position: center;
+  font-size: 14px;
+  color: #fff;
+}
+
+/* 최근 활동 피드 */
+#activity-feed-list .activity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+#activity-feed-list .activity-item:last-child { border-bottom: none; }
+#activity-feed-list .activity-item .activity-time { color: var(--text3); font-size: 11px; margin-top: 2px; }
+#activity-feed-list .activity-item .activity-text { font-size: 13px; color: var(--text); line-height: 1.4; }
+#activity-feed-list .activity-empty { text-align:center; padding:24px 0; color: var(--text3); font-size: 13px; }
