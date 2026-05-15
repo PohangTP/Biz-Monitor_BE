@@ -8,6 +8,11 @@ __pycache__/
 venv/
 *.egg-info/
 
+# API 명세서 export (로컬 생성 파일, 공유 시 직접 전달)
+openapi.json
+api-docs.html
+gen_docs.py
+
 # Backup / 세션 인계 / 구버전 폴더
 _backup/
 biz-monitor/
