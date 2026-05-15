@@ -27,6 +27,7 @@ def is_admin():
         return False
 
 title("PMS Install")
+print(f"  경로: {ROOT}")
 
 if not is_admin():
     err("관리자 권한이 필요합니다.")
